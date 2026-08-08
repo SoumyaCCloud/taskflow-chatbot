@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* Let Tailwind see the utility classes inside Streamdown's compiled output. */
+@source "../node_modules/streamdown/dist/*.js";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* shadcn-style tokens Streamdown renders against (bg-muted,
+     text-muted-foreground, border-border, bg-primary). Deliberately not
+     flipped for dark mode — see .markdown-surface below. */
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --border: #d4d4d8;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Assistant bubbles are hard-coded light (bg-zinc-100 / text-zinc-900), but
+ * :root flips --foreground to near-white under prefers-color-scheme: dark.
+ * Streamdown renders text-foreground, so without pinning these back to light
+ * values the markdown text would go invisible on a dark OS.
+ */
+.markdown-surface {
+  --background: #ffffff;
+  --foreground: #18181b;
+}
