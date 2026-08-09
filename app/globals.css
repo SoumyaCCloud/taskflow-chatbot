@@ -3,52 +3,183 @@
 /* Let Tailwind see the utility classes inside Streamdown's compiled output. */
 @source "../node_modules/streamdown/dist/*.js";
 
+/*
+ * Taskflow design tokens — ported from PRD/11-design-tokens.md and
+ * shell/app/globals.css. Dark is the default (declared here); light is an
+ * override stamped as data-theme="light" on <html>.
+ *
+ * The shell declares these in tailwind.config.ts, but this app is Tailwind v4
+ * CSS-first, so the same mapping lives in @theme. Note: plain @theme, NOT
+ * @theme inline — inline would bake the hex into every utility and the
+ * data-theme override would stop working.
+ */
+@theme {
+  --font-sans: var(--font-inter), Inter, system-ui, sans-serif;
+
+  /* Surfaces */
+  --color-bg-900: #121215;
+  --color-bg-800: #1a1a1e;
+  --color-bg-700: #222227;
+  --color-bg-600: #2c2c32;
+  --color-bg-500: #393940;
+  --color-border-subtle: #2c2c32;
+
+  /* Text */
+  --color-text-100: #f4f3f0;
+  --color-text-200: #abaaa5;
+  --color-text-300: #6e6c6a;
+  --color-prose-body: #cbcac6;
+
+  /* Accent */
+  --color-accent: #6155dd;
+  --color-accent-hover: #766be8;
+  --color-accent-bg: #261f42;
+
+  /* Status */
+  --color-status-green: #32b173;
+  --color-status-amber: #e09d34;
+  --color-status-red: #dc4949;
+  --color-green-bg: #123822;
+  --color-amber-bg: #45320d;
+  --color-red-bg: #451515;
+
+  /* shadcn-shaped aliases Streamdown renders against (bg-muted,
+     text-muted-foreground, border-border, bg-primary, text-foreground). */
+  --color-background: #222227;
+  --color-foreground: #f4f3f0;
+  --color-muted: #2c2c32;
+  --color-muted-foreground: #abaaa5;
+  --color-border: #2c2c32;
+  --color-primary: #6155dd;
+  --color-primary-foreground: #ffffff;
+
+  --radius-card: 10px;
+}
+
+/*
+ * Shadows are deliberately NOT in @theme. Tailwind v4 decomposes --shadow-*
+ * theme values at build time (to support the shadow-<color> modifier), which
+ * bakes the dark hex into the utility and breaks the light override. Declared
+ * as plain vars here and surfaced through @utility at the bottom instead.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-
-  /* shadcn-style tokens Streamdown renders against (bg-muted,
-     text-muted-foreground, border-border, bg-primary). Deliberately not
-     flipped for dark mode — see .markdown-surface below. */
-  --muted: #f4f4f5;
-  --muted-foreground: #52525b;
-  --border: #d4d4d8;
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(97, 85, 221, 0.15);
+  --overlay-accent-hover: rgba(97, 85, 221, 0.3);
+  --overlay-selection: rgba(97, 85, 221, 0.3);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root[data-theme="light"] {
+  --color-bg-900: #f7f7f8;
+  --color-bg-800: #efeff1;
+  --color-bg-700: #ffffff;
+  --color-bg-600: #e4e4e7;
+  --color-bg-500: #d4d4d8;
+  --color-border-subtle: #e4e4e7;
+
+  --color-text-100: #18181b;
+  --color-text-200: #52525b;
+  --color-text-300: #8a8a93;
+  --color-prose-body: #3f3f46;
+
+  --color-accent: #6155dd;
+  --color-accent-hover: #4f44c7;
+  --color-accent-bg: #eeecfc;
+
+  --color-status-green: #178350;
+  --color-status-amber: #a6690e;
+  --color-status-red: #c23636;
+  --color-green-bg: #e4f5ec;
+  --color-amber-bg: #fbf0dd;
+  --color-red-bg: #fbe6e6;
+
+  --color-background: #ffffff;
+  --color-foreground: #18181b;
+  --color-muted: #e4e4e7;
+  --color-muted-foreground: #52525b;
+  --color-border: #e4e4e7;
+  --color-primary: #6155dd;
+  --color-primary-foreground: #ffffff;
+
+  --shadow-card: 0 1px 3px rgba(24, 24, 27, 0.08), 0 1px 2px rgba(24, 24, 27, 0.06);
+  --shadow-elevated: 0 4px 16px rgba(24, 24, 27, 0.1);
+  --shadow-glow: 0 0 20px rgba(97, 85, 221, 0.1);
+
+  --overlay-accent-hover: rgba(97, 85, 221, 0.18);
+  --overlay-selection: rgba(97, 85, 221, 0.18);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+*,
+*::before,
+*::after {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease,
+    box-shadow 0.25s ease, fill 0.25s ease, stroke 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg-900);
+  color: var(--color-text-100);
+  font-family: var(--font-sans);
 }
 
-/*
- * Assistant bubbles are hard-coded light (bg-zinc-100 / text-zinc-900), but
- * :root flips --foreground to near-white under prefers-color-scheme: dark.
- * Streamdown renders text-foreground, so without pinning these back to light
- * values the markdown text would go invisible on a dark OS.
- */
-.markdown-surface {
-  --background: #ffffff;
-  --foreground: #18181b;
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-800);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-500);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The composer is deliberately chrome-less — it signals focus with the accent
+   glow shadow instead of the global ring. Specificity beats *:focus-visible. */
+.composer-input:focus,
+.composer-input:focus-visible {
+  outline: none;
+}
+
+::selection {
+  background: var(--overlay-selection);
+  color: var(--color-text-100);
+}
+
+@utility shadow-card {
+  box-shadow: var(--shadow-card);
+}
+
+@utility shadow-elevated {
+  box-shadow: var(--shadow-elevated);
+}
+
+@utility shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Scrolling stays functional; only the track is hidden. */
+@utility no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+
+  &::-webkit-scrollbar {
+    display: none; /* Chrome / Safari */
+  }
 }
