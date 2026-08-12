@@ -21,7 +21,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Ask about your project..."
-        className="composer-input w-full rounded-full border-none bg-bg-600 py-4 pl-6 pr-14 text-text-100 placeholder:text-text-300 shadow-card focus:shadow-glow"
+        className="composer-input w-full rounded-full border border-border-subtle bg-bg-600 py-4 pl-6 pr-14 text-[15px] text-text-100 placeholder:text-text-300 shadow-card focus:border-accent/40 focus:shadow-glow"
       />
       {/* Inset from the edges rather than translate-centred: motion writes an
           inline transform for the scale tween and would clobber a translate. */}
@@ -35,7 +35,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.6 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-2 top-2 bottom-2 grid aspect-square place-items-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:bg-bg-500 disabled:text-text-300"
+            className="absolute right-2 top-2 bottom-2 grid aspect-square place-items-center rounded-full bg-accent text-primary-foreground hover:bg-accent-hover disabled:bg-bg-500 disabled:text-text-300"
           >
             <ArrowRight className="h-5 w-5" />
           </motion.button>

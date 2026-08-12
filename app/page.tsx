@@ -1,12 +1,14 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useState, type FormEvent } from 'react';
 import 'streamdown/styles.css';
 
 import { ChatInput } from '@/components/chat-input';
 import { ChatMessages } from '@/components/chat-messages';
+import { EmptyState } from '@/components/empty-state';
+import { SuggestedPrompts } from '@/components/suggested-prompts';
 
 export default function Page() {
   const { messages, sendMessage, status, error } = useChat();
@@ -15,6 +17,10 @@ export default function Page() {
   const isLoading = status === 'submitted' || status === 'streaming';
   // Empty chat centers the composer; the first message drops it to the bottom.
   const hasConversation = messages.length > 0;
+  const isEmptyState = !hasConversation && !error;
+  // Starters are a substitute for knowing what to ask; the moment you start
+  // typing you already know, so they get out of the way.
+  const showSuggestions = isEmptyState && input.trim().length === 0;
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -23,10 +29,16 @@ export default function Page() {
     setInput('');
   };
 
+  // A starter chip sends immediately rather than pre-filling the composer —
+  // the chip already reads as the finished question.
+  const handlePick = (prompt: string) => {
+    if (isLoading) return;
+    sendMessage({ text: prompt });
+    setInput('');
+  };
+
   return (
-    <main
-      className={`mx-auto flex h-full w-full max-w-3xl flex-col p-4 ${hasConversation ? '' : 'justify-center'
-        }`}
+    <main className={`mx-auto flex h-full w-full max-w-3xl flex-col p-4 ${hasConversation ? '' : 'justify-center'}`}
     >
       {(hasConversation || error) && (
         <ChatMessages
@@ -36,6 +48,10 @@ export default function Page() {
           error={error}
         />
       )}
+
+      {/* The greeting only exists in the empty state — once the conversation
+          starts the transcript deserves the vertical space. */}
+      {isEmptyState && <EmptyState />}
 
       {/* Kept in the same tree position in both states so `layout` tweens the
           composer from center to bottom instead of remounting it. */}
@@ -50,6 +66,14 @@ export default function Page() {
           onSubmit={handleSubmit}
           disabled={isLoading}
         />
+
+        {/* Under the composer, inside the same layout-animated block so the
+            chips travel with it rather than jumping when it recentres. */}
+        <AnimatePresence initial={false}>
+          {showSuggestions && (
+            <SuggestedPrompts onPick={handlePick} disabled={isLoading} />
+          )}
+        </AnimatePresence>
       </motion.div>
     </main>
   );
