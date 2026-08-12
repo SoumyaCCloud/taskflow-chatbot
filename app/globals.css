@@ -4,6 +4,19 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 /*
+ * Tailwind v4's built-in `dark:` variant compiles to prefers-color-scheme,
+ * which follows the user's OS rather than the theme the shell handed us on the
+ * iframe URL. Rebind it to data-theme so it matches the token block below:
+ * dark is the default, light is the override.
+ *
+ * Streamdown depends on this. It emits Shiki's dual github-light/github-dark
+ * output as `dark:text-[var(--shiki-dark,...)]`, so on a light-mode OS a code
+ * block inside our dark chat rendered github-LIGHT tokens — near-black syntax
+ * colors on a #1A1A1E surface.
+ */
+@custom-variant dark (&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *));
+
+/*
  * Taskflow design tokens — ported from PRD/11-design-tokens.md and
  * shell/app/globals.css. Dark is the default (declared here); light is an
  * override stamped as data-theme="light" on <html>.
@@ -52,6 +65,10 @@
   --color-border: #2c2c32;
   --color-primary: #6155dd;
   --color-primary-foreground: #ffffff;
+  /* Streamdown wraps code blocks and tables in `bg-sidebar` / `border-sidebar`.
+     Without this alias those utilities compile to nothing and the wrapper
+     inherits the bubble. bg-600 per the PRD's "inputs, code blocks" role. */
+  --color-sidebar: #2c2c32;
 
   --radius-card: 10px;
 }
@@ -101,6 +118,7 @@
   --color-border: #e4e4e7;
   --color-primary: #6155dd;
   --color-primary-foreground: #ffffff;
+  --color-sidebar: #e4e4e7;
 
   --shadow-card: 0 1px 3px rgba(24, 24, 27, 0.08), 0 1px 2px rgba(24, 24, 27, 0.06);
   --shadow-elevated: 0 4px 16px rgba(24, 24, 27, 0.1);
@@ -160,6 +178,12 @@ body {
 ::selection {
   background: var(--overlay-selection);
   color: var(--color-text-100);
+}
+
+/* Streamdown ships inline code as bg-muted with inherited text color; the PRD
+   assigns inline code to the green status hue, which is tokenized per theme. */
+[data-streamdown="inline-code"] {
+  color: var(--color-status-green);
 }
 
 @utility shadow-card {
