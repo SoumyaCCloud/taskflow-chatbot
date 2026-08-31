@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+import { readSessionToken } from '@/lib/shell-session';
 import { encodeForHeader } from '@/lib/shell-user';
 
 /*
  * The shell embeds this app cross-origin in an <iframe>, so neither the
  * taskflow_theme nor the taskflow_session cookie reaches us — it passes the
- * theme and the signed-in user's name on the URL instead:
+ * theme, the signed-in user's name and their session token on the URL instead:
  *
- *   /?theme=dark&name=Soumyabroto+Das
+ *   /?theme=dark&name=Soumyabroto+Das&token=<jwt>
  *
  * Layouts can't read searchParams, so lift them off the URL here and hand them
  * to the root layout as request headers.
@@ -31,6 +32,15 @@ export function proxy(request: NextRequest) {
   // by sending the header directly, and a stale value could survive a rewrite.
   if (name) headers.set('x-taskflow-name', name);
   else headers.delete('x-taskflow-name');
+
+  // Same reasoning, and it matters more here: this one authorizes agent calls.
+  // The cookie is the same-origin case (opening the app outside the shell).
+  const token = readSessionToken(
+    params.get('token') ?? request.cookies.get('taskflow_session')?.value,
+  );
+
+  if (token) headers.set('x-taskflow-token', token);
+  else headers.delete('x-taskflow-token');
 
   return NextResponse.next({ request: { headers } });
 }

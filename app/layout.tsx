@@ -3,7 +3,9 @@ import { Inter } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 
+import { ShellSessionProvider } from "@/components/shell-session-provider";
 import { ShellUserProvider } from "@/components/shell-user-provider";
+import { readSessionToken } from "@/lib/shell-session";
 import { decodeFromHeader } from "@/lib/shell-user";
 
 const inter = Inter({
@@ -26,6 +28,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   const name = decodeFromHeader(requestHeaders.get("x-taskflow-name"));
 
+  // Re-validated rather than trusted: the header is only as good as the proxy
+  // that set it, and this one authorizes every agent call the chat makes.
+  const token = readSessionToken(requestHeaders.get("x-taskflow-token"));
+
   return (
     <html
       lang="en"
@@ -33,7 +39,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="h-full overflow-hidden flex flex-col bg-bg-900 text-text-100">
-        <ShellUserProvider name={name}>{children}</ShellUserProvider>
+        <ShellUserProvider name={name}>
+          <ShellSessionProvider token={token}>{children}</ShellSessionProvider>
+        </ShellUserProvider>
       </body>
     </html>
   );

@@ -1,17 +1,18 @@
 'use client';
 
-import type { ChatStatus, UIMessage } from 'ai';
 import { CircleAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRef, useEffect } from 'react';
 import { Streamdown } from 'streamdown';
 
 import { AssistantAvatar } from '@/components/assistant-avatar';
+import { ToolEvent } from '@/components/tool-event';
 import { TypingIndicator } from '@/components/typing-indicator';
 import { UserAvatar } from '@/components/user-avatar';
+import type { ChatEntry, ChatStatus } from '@/lib/use-agent-chat';
 
 type ChatMessagesProps = {
-  messages: UIMessage[];
+  entries: ChatEntry[];
   status: ChatStatus;
   isLoading: boolean;
   error?: Error;
@@ -25,14 +26,21 @@ type ChatMessagesProps = {
 const BUBBLE_BASE =
   'max-w-[85%] rounded-3xl px-5 shadow-card text-[15px] leading-relaxed';
 
-export function ChatMessages({ messages, status, isLoading, error }: ChatMessagesProps) {
+export function ChatMessages({ entries, status, isLoading, error }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, status]);
+  }, [entries, status]);
+
+  // The typing dots stand in for an answer that hasn't started arriving. Once
+  // the first token lands the bubble itself is the progress indicator, so
+  // showing both would read as two pending replies.
+  const last = entries[entries.length - 1];
+  const isAnswering = last?.kind === 'message' && last.role === 'assistant';
+  const showTyping = isLoading && !isAnswering;
 
   return (
     <div
@@ -40,12 +48,23 @@ export function ChatMessages({ messages, status, isLoading, error }: ChatMessage
       className="min-h-0 flex-1 space-y-5 overflow-y-auto scroll-smooth p-4 no-scrollbar"
     >
       <AnimatePresence initial={false}>
-        {messages.map((m: UIMessage) => {
-          const isUser = m.role === 'user';
+        {entries.map((entry) => {
+          if (entry.kind === 'tool') {
+            return (
+              <ToolEvent
+                key={entry.id}
+                tool={entry.tool}
+                args={entry.args}
+                output={entry.output}
+              />
+            );
+          }
+
+          const isUser = entry.role === 'user';
 
           return (
             <motion.div
-              key={m.id}
+              key={entry.id}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.3 }}
@@ -59,20 +78,15 @@ export function ChatMessages({ messages, status, isLoading, error }: ChatMessage
                   : 'rounded-bl-lg border border-border-subtle bg-bg-700 py-4 text-text-100'
                   }`}
               >
-                {m.parts.map((part, i) => {
-                  if (part.type !== 'text') return null;
-                  // Only the model emits markdown; user text stays literal so
-                  // typing **foo** shows the asterisks rather than bolding.
-                  return m.role === 'assistant' ? (
-                    <Streamdown key={i} animated isAnimating={status === 'streaming'}>
-                      {part.text}
-                    </Streamdown>
-                  ) : (
-                    <span key={i} className="whitespace-pre-wrap">
-                      {part.text}
-                    </span>
-                  );
-                })}
+                {/* Only the model emits markdown; user text stays literal so
+                    typing **foo** shows the asterisks rather than bolding. */}
+                {isUser ? (
+                  <span className="whitespace-pre-wrap">{entry.text}</span>
+                ) : (
+                  <Streamdown animated isAnimating={status === 'streaming'}>
+                    {entry.text}
+                  </Streamdown>
+                )}
               </div>
 
               {/* Sits after the bubble so it lands on the outer edge of the
@@ -83,7 +97,7 @@ export function ChatMessages({ messages, status, isLoading, error }: ChatMessage
         })}
       </AnimatePresence>
 
-      {isLoading && (
+      {showTyping && (
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}

@@ -1,6 +1,5 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState, type FormEvent } from 'react';
 import 'streamdown/styles.css';
@@ -8,15 +7,19 @@ import 'streamdown/styles.css';
 import { ChatInput } from '@/components/chat-input';
 import { ChatMessages } from '@/components/chat-messages';
 import { EmptyState } from '@/components/empty-state';
+import { useSessionToken } from '@/components/shell-session-provider';
 import { SuggestedPrompts } from '@/components/suggested-prompts';
+import { useAgentChat } from '@/lib/use-agent-chat';
 
 export default function Page() {
-  const { messages, sendMessage, status, error } = useChat();
+  // The bearer the shell handed the iframe; every turn is authorized with it.
+  const token = useSessionToken();
+  const { entries, status, error, sendMessage } = useAgentChat(token);
   const [input, setInput] = useState('');
 
   const isLoading = status === 'submitted' || status === 'streaming';
   // Empty chat centers the composer; the first message drops it to the bottom.
-  const hasConversation = messages.length > 0;
+  const hasConversation = entries.length > 0;
   const isEmptyState = !hasConversation && !error;
   // Starters are a substitute for knowing what to ask; the moment you start
   // typing you already know, so they get out of the way.
@@ -25,7 +28,7 @@ export default function Page() {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim()) return;
-    sendMessage({ text: input });
+    void sendMessage(input);
     setInput('');
   };
 
@@ -33,7 +36,7 @@ export default function Page() {
   // the chip already reads as the finished question.
   const handlePick = (prompt: string) => {
     if (isLoading) return;
-    sendMessage({ text: prompt });
+    void sendMessage(prompt);
     setInput('');
   };
 
@@ -42,7 +45,7 @@ export default function Page() {
     >
       {(hasConversation || error) && (
         <ChatMessages
-          messages={messages}
+          entries={entries}
           status={status}
           isLoading={isLoading}
           error={error}
