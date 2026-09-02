@@ -6,6 +6,7 @@ import { useRef, useEffect } from 'react';
 import { Streamdown } from 'streamdown';
 
 import { AssistantAvatar } from '@/components/assistant-avatar';
+import { ReasoningEvent } from '@/components/reasoning-event';
 import { ToolEvent } from '@/components/tool-event';
 import { TypingIndicator } from '@/components/typing-indicator';
 import { UserAvatar } from '@/components/user-avatar';
@@ -49,6 +50,10 @@ export function ChatMessages({ entries, status, isLoading, error }: ChatMessages
     >
       <AnimatePresence initial={false}>
         {entries.map((entry) => {
+          if (entry.kind === 'reasoning') {
+            return <ReasoningEvent key={entry.id} text={entry.text} />;
+          }
+
           if (entry.kind === 'tool') {
             return (
               <ToolEvent
@@ -56,6 +61,7 @@ export function ChatMessages({ entries, status, isLoading, error }: ChatMessages
                 tool={entry.tool}
                 args={entry.args}
                 output={entry.output}
+                status={entry.status}
               />
             );
           }

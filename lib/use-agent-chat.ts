@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { drainEvents } from '@/lib/agent-events';
+import type { AgentEvent, AgentJobResponse, AgentStartResponse } from '@/lib/agent-events';
 
 /*
  * The chat transcript. Tool activity is a sibling of the messages rather than
@@ -12,7 +12,15 @@ import { drainEvents } from '@/lib/agent-events';
  */
 export type ChatEntry =
   | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string }
-  | { id: string; kind: 'tool'; tool: string; args?: unknown; output?: string };
+  | {
+    id: string;
+    kind: 'tool';
+    tool: string;
+    args?: unknown;
+    output?: string;
+    status: 'running' | 'done';
+  }
+  | { id: string; kind: 'reasoning'; text: string };
 
 export type ChatStatus = 'ready' | 'submitted' | 'streaming';
 
@@ -22,12 +30,31 @@ function nextId(): string {
   return `e${counter}`;
 }
 
+// How often a running job is polled for new events. The real agent has no
+// live connection to push over — see lib/agent-events.ts — so this is the
+// only way progress arrives.
+const POLL_INTERVAL_MS = 2000;
+
+/** Like `setTimeout`, but resolves early if `signal` aborts instead of firing a dead poll. */
+function wait(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+}
+
 /**
- * Speaks the agent's SSE protocol from the browser.
- *
- * `EventSource` can't be used: it is GET-only and cannot set headers, while this
- * endpoint needs POST, a JSON body and an Authorization header — so the stream
- * is read off `fetch` by hand.
+ * Speaks the agent's job/poll protocol from the browser: POST starts a turn
+ * and returns a job id almost instantly, then GET is polled until the job
+ * stops running. See lib/agent-events.ts for why there is no streamed
+ * connection here.
  */
 export function useAgentChat(token: string) {
   const [entries, setEntries] = useState<ChatEntry[]>([]);
@@ -43,7 +70,7 @@ export function useAgentChat(token: string) {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    // A stream left running after unmount keeps writing into dead state.
+    // A poll loop left running after unmount keeps writing into dead state.
     return () => abortRef.current?.abort();
   }, []);
 
@@ -62,24 +89,85 @@ export function useAgentChat(token: string) {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      // The answer arrives token by token — it accumulates into one growing
-      // bubble, created lazily so a tool-only turn doesn't leave an empty one.
+      // The answer streams in as a run of `token` events — they accumulate
+      // into one growing bubble, created lazily so a tool-only turn doesn't
+      // leave an empty one.
       let answerId: string | null = null;
 
-      const appendToken = (content: string) => {
-        setEntries((prev) => {
-          if (answerId === null) return prev;
-          const id = answerId;
-          return prev.map((entry) =>
-            entry.id === id && entry.kind === 'message'
-              ? { ...entry, text: entry.text + content }
-              : entry,
-          );
-        });
+      // The protocol pairs a `tool_call` with a later `tool_result` by tool
+      // name only (no call id), so a FIFO queue per tool name is how the
+      // result finds its way back to the chip that started running — turning
+      // two events into one entry that flips from "Calling" to "Called"
+      // instead of leaving two separate log lines.
+      const pendingToolCalls = new Map<string, string[]>();
+
+      const applyEvent = (event: AgentEvent) => {
+        switch (event.type) {
+          case 'token': {
+            if (answerId === null) {
+              const id = nextId();
+              answerId = id;
+              setEntries((prev) => [
+                ...prev,
+                { id, kind: 'message', role: 'assistant', text: '' },
+              ]);
+            }
+            const id = answerId;
+            setEntries((prev) =>
+              prev.map((entry) =>
+                entry.id === id && entry.kind === 'message'
+                  ? { ...entry, text: entry.text + event.content }
+                  : entry,
+              ),
+            );
+            break;
+          }
+          case 'reasoning':
+            setEntries((prev) => [
+              ...prev,
+              { id: nextId(), kind: 'reasoning', text: event.content },
+            ]);
+            break;
+          case 'tool_call': {
+            const id = nextId();
+            const queue = pendingToolCalls.get(event.tool) ?? [];
+            queue.push(id);
+            pendingToolCalls.set(event.tool, queue);
+            setEntries((prev) => [
+              ...prev,
+              { id, kind: 'tool', tool: event.tool, args: event.args, status: 'running' },
+            ]);
+            break;
+          }
+          case 'tool_result': {
+            const queue = pendingToolCalls.get(event.tool);
+            const id = queue?.shift();
+            if (id) {
+              setEntries((prev) =>
+                prev.map((entry) =>
+                  entry.id === id && entry.kind === 'tool'
+                    ? { ...entry, output: event.output, status: 'done' }
+                    : entry,
+                ),
+              );
+            } else {
+              // A result with no matching call (e.g. reconnect mid-turn)
+              // still deserves a line rather than being dropped silently.
+              setEntries((prev) => [
+                ...prev,
+                { id: nextId(), kind: 'tool', tool: event.tool, output: event.output, status: 'done' },
+              ]);
+            }
+            break;
+          }
+          case 'error':
+            setError(new Error(event.message));
+            break;
+        }
       };
 
       try {
-        const response = await fetch('/api/agent', {
+        const startResponse = await fetch('/api/agent', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -92,62 +180,33 @@ export function useAgentChat(token: string) {
           signal: controller.signal,
         });
 
-        if (!response.ok || !response.body) {
-          const detail = await response.text().catch(() => '');
-          throw new Error(detail || `Request failed (HTTP ${response.status}).`);
+        if (!startResponse.ok) {
+          const detail = await startResponse.text().catch(() => '');
+          throw new Error(detail || `Request failed (HTTP ${startResponse.status}).`);
         }
 
+        const { job_id: jobId } = (await startResponse.json()) as AgentStartResponse;
         setStatus('streaming');
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+        let renderedCount = 0;
+        while (!controller.signal.aborted) {
+          const pollResponse = await fetch(`/api/agent/${jobId}`, {
+            signal: controller.signal,
+          });
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          // `stream: true` so a multi-byte character split across two network
-          // chunks is held back rather than decoded into a replacement char.
-          buffer += decoder.decode(value, { stream: true });
-
-          const { events, rest } = drainEvents(buffer);
-          buffer = rest;
-
-          for (const event of events) {
-            switch (event.type) {
-              case 'token': {
-                if (answerId === null) {
-                  const id = nextId();
-                  answerId = id;
-                  setEntries((prev) => [
-                    ...prev,
-                    { id, kind: 'message', role: 'assistant', text: '' },
-                  ]);
-                }
-                appendToken(event.content);
-                break;
-              }
-              case 'tool_call':
-                setEntries((prev) => [
-                  ...prev,
-                  { id: nextId(), kind: 'tool', tool: event.tool, args: event.args },
-                ]);
-                break;
-              case 'tool_result':
-                setEntries((prev) => [
-                  ...prev,
-                  { id: nextId(), kind: 'tool', tool: event.tool, output: event.output },
-                ]);
-                break;
-              case 'error':
-                setError(new Error(event.message));
-                break;
-              case 'done':
-                // Nothing to do — the reader ends with the stream.
-                break;
-            }
+          if (!pollResponse.ok) {
+            const detail = await pollResponse.text().catch(() => '');
+            throw new Error(detail || `Polling failed (HTTP ${pollResponse.status}).`);
           }
+
+          const { status: jobStatus, events } = (await pollResponse.json()) as AgentJobResponse;
+
+          for (; renderedCount < events.length; renderedCount++) {
+            applyEvent(events[renderedCount]);
+          }
+
+          if (jobStatus !== 'running') break;
+          await wait(POLL_INTERVAL_MS, controller.signal);
         }
       } catch (err) {
         // Aborting is our own doing (unmount), not something to report.
