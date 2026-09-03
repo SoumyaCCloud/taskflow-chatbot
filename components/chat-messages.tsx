@@ -101,7 +101,10 @@ export function ChatMessages({ entries, status, isLoading, error, token }: ChatM
             >
               {!isUser && <AssistantAvatar />}
 
-              <div className={`flex max-w-[60%] flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+              <div
+                className={`flex flex-col gap-1 ${isUser ? 'max-w-[60%] items-end' : 'max-w-full items-start'
+                  }`}
+              >
                 <div
                   className={`${BUBBLE_BASE} ${isUser
                     ? 'rounded-br-lg bg-accent py-3 text-primary-foreground'
