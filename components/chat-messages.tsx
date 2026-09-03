@@ -27,9 +27,16 @@ type ChatMessagesProps = {
  * Bubble geometry. Both sides share a large radius; the one squared-off corner
  * is softened to 8px rather than 0 so the shape still points at its author
  * without breaking the rounded language the composer sets.
+ *
+ * The 85% cap deliberately lives on the flex row's direct child (the column
+ * that also holds the copy button), not on the bubble itself: a percentage
+ * width only resolves against a definite container, and the bubble's own
+ * parent is an auto-sized flex item. Capping it there instead let the bubble
+ * shrink to whatever its text actually needs, up to that limit — putting the
+ * 85% back on the bubble reintroduces the bug where every reply wrapped at
+ * its minimum content width no matter how short it was.
  */
-const BUBBLE_BASE =
-  'max-w-[85%] rounded-3xl px-5 shadow-card text-[15px] leading-relaxed';
+const BUBBLE_BASE = 'rounded-3xl px-5 shadow-card text-[15px] leading-relaxed';
 
 export function ChatMessages({ entries, status, isLoading, error, token }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -76,6 +83,8 @@ export function ChatMessages({ entries, status, isLoading, error, token }: ChatM
                 args={entry.args}
                 output={entry.output}
                 status={entry.status}
+                startedAt={entry.startedAt}
+                endedAt={entry.endedAt}
               />
             );
           }
@@ -92,7 +101,7 @@ export function ChatMessages({ entries, status, isLoading, error, token }: ChatM
             >
               {!isUser && <AssistantAvatar />}
 
-              <div className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+              <div className={`flex max-w-[60%] flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
                 <div
                   className={`${BUBBLE_BASE} ${isUser
                     ? 'rounded-br-lg bg-accent py-3 text-primary-foreground'

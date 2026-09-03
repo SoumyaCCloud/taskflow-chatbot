@@ -19,6 +19,11 @@ export type ChatEntry =
     args?: unknown;
     output?: string;
     status: 'running' | 'done';
+    // Client-side wall-clock timestamps (ms) — the protocol carries no timing
+    // of its own — so ToolEvent can show a Claude-style elapsed counter next
+    // to the call: ticking while `endedAt` is unset, frozen once it lands.
+    startedAt: number;
+    endedAt?: number;
   }
   | { id: string; kind: 'reasoning'; text: string }
   | { id: string; kind: 'file'; filename: string; url: string }
@@ -164,7 +169,14 @@ export function useAgentChat(token: string) {
             pendingToolCalls.set(event.tool, queue);
             setEntries((prev) => [
               ...prev,
-              { id, kind: 'tool', tool: event.tool, args: event.args, status: 'running' },
+              {
+                id,
+                kind: 'tool',
+                tool: event.tool,
+                args: event.args,
+                status: 'running',
+                startedAt: Date.now(),
+              },
             ]);
             break;
           }
@@ -172,19 +184,30 @@ export function useAgentChat(token: string) {
             const queue = pendingToolCalls.get(event.tool);
             const id = queue?.shift();
             if (id) {
+              const endedAt = Date.now();
               setEntries((prev) =>
                 prev.map((entry) =>
                   entry.id === id && entry.kind === 'tool'
-                    ? { ...entry, output: event.output, status: 'done' }
+                    ? { ...entry, output: event.output, status: 'done', endedAt }
                     : entry,
                 ),
               );
             } else {
               // A result with no matching call (e.g. reconnect mid-turn)
-              // still deserves a line rather than being dropped silently.
+              // still deserves a line rather than being dropped silently —
+              // there's no real start time to show, so it reads as instant.
+              const now = Date.now();
               setEntries((prev) => [
                 ...prev,
-                { id: nextId(), kind: 'tool', tool: event.tool, output: event.output, status: 'done' },
+                {
+                  id: nextId(),
+                  kind: 'tool',
+                  tool: event.tool,
+                  output: event.output,
+                  status: 'done',
+                  startedAt: now,
+                  endedAt: now,
+                },
               ]);
             }
             break;
