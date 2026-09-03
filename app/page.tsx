@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import 'streamdown/styles.css';
 
 import { ChatInput } from '@/components/chat-input';
@@ -14,7 +14,7 @@ import { useAgentChat } from '@/lib/use-agent-chat';
 export default function Page() {
   // The bearer the shell handed the iframe; every turn is authorized with it.
   const token = useSessionToken();
-  const { entries, status, error, sendMessage } = useAgentChat(token);
+  const { entries, status, error, sendMessage, stop } = useAgentChat(token);
   const [input, setInput] = useState('');
 
   const isLoading = status === 'submitted' || status === 'streaming';
@@ -25,7 +25,7 @@ export default function Page() {
   // typing you already know, so they get out of the way.
   const showSuggestions = isEmptyState && input.trim().length === 0;
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim()) return;
     void sendMessage(input);
@@ -49,6 +49,7 @@ export default function Page() {
           status={status}
           isLoading={isLoading}
           error={error}
+          token={token}
         />
       )}
 
@@ -67,7 +68,8 @@ export default function Page() {
           value={input}
           onChange={setInput}
           onSubmit={handleSubmit}
-          disabled={isLoading}
+          onStop={stop}
+          isLoading={isLoading}
         />
 
         {/* Under the composer, inside the same layout-animated block so the

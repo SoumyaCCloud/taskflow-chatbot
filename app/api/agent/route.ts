@@ -123,6 +123,7 @@ async function runLocalJob(job: LocalJob, payload: AgentRequest): Promise<void> 
       model: google('gemini-3.6-flash'),
       system: SYSTEM_PROMPT,
       messages,
+      abortSignal: job.controller.signal,
     });
 
     for await (const part of result.fullStream) {
@@ -157,18 +158,27 @@ async function runLocalJob(job: LocalJob, payload: AgentRequest): Promise<void> 
       }
     }
 
-    // Only a turn that actually produced an answer is worth remembering —
-    // committing a half-generated reply would poison the next turn.
-    if (answer) {
-      history.push({ role: 'user', content: payload.message });
-      history.push({ role: 'assistant', content: answer });
-      if (history.length > MAX_HISTORY) {
-        history.splice(0, history.length - MAX_HISTORY);
+    // A stop request already pushed its own event and flipped the status —
+    // stopLocalJob owns that outcome, so leave it alone here. Guards both the
+    // case where aborting throws (below) and where fullStream just ends
+    // quietly instead.
+    if (job.status === 'running') {
+      // Only a turn that actually produced an answer is worth remembering —
+      // committing a half-generated reply would poison the next turn.
+      if (answer) {
+        history.push({ role: 'user', content: payload.message });
+        history.push({ role: 'assistant', content: answer });
+        if (history.length > MAX_HISTORY) {
+          history.splice(0, history.length - MAX_HISTORY);
+        }
       }
+      job.status = 'completed';
     }
-
-    job.status = 'completed';
   } catch (error) {
+    // stopLocalJob's abort() is expected to unwind the stream as a rejection;
+    // that is a stop, not a failure, and it already recorded its own event.
+    if (job.controller.signal.aborted) return;
+
     console.error('[agent] generation failed:', error);
     job.events.push({ type: 'error', message: 'The assistant could not answer that.' });
     job.status = 'error';

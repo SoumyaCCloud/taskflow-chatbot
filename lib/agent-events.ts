@@ -10,6 +10,14 @@
  *   GET  /api/agent/{job_id}
  *     -> {"status": "running", "events": [...]}      (poll again)
  *     -> {"status": "completed", "events": [...]}     (stop polling)
+ *   POST /api/agent/{job_id}/stop
+ *     -> {"ok": true}   (the running job's next poll carries a `stopped` event)
+ *
+ * A `file` event's `url` lives on the agent's own host and is gated by the
+ * same bearer as chat — the browser can't fetch it directly (the token would
+ * have to leave our origin, and a plain `<a>` can't attach it as a header
+ * anyway), so `GET /api/agent/download` proxies it instead. See that route
+ * for why the target is restricted to the agent's origin.
  *
  * Both ends of the app share these types — `app/api/agent/**\/route.ts` writes
  * them, `lib/use-agent-chat.ts` reads them — so a change to the shape breaks
@@ -20,6 +28,8 @@ export type AgentEvent =
   | { type: 'reasoning'; content: string }
   | { type: 'tool_call'; tool: string; args: unknown }
   | { type: 'tool_result'; tool: string; output: string }
+  | { type: 'file'; filename: string; url: string }
+  | { type: 'stopped'; message: string }
   | { type: 'error'; message: string };
 
 /** What the client POSTs. History lives server-side, keyed by `thread_id`. */

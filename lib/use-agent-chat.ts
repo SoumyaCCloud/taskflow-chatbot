@@ -20,7 +20,9 @@ export type ChatEntry =
     output?: string;
     status: 'running' | 'done';
   }
-  | { id: string; kind: 'reasoning'; text: string };
+  | { id: string; kind: 'reasoning'; text: string }
+  | { id: string; kind: 'file'; filename: string; url: string }
+  | { id: string; kind: 'stopped'; message: string };
 
 export type ChatStatus = 'ready' | 'submitted' | 'streaming';
 
@@ -69,10 +71,37 @@ export function useAgentChat(token: string) {
 
   const abortRef = useRef<AbortController | null>(null);
 
+  // The job currently being polled, if the initial POST has resolved.
+  // `stop()` needs this to tell the backend which run to actually
+  // terminate — aborting the client's own fetches wouldn't touch the
+  // generation still running server-side.
+  const jobIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     // A poll loop left running after unmount keeps writing into dead state.
     return () => abortRef.current?.abort();
   }, []);
+
+  const stop = useCallback(() => {
+    const jobId = jobIdRef.current;
+
+    if (!jobId) {
+      // No job yet — still waiting on the initial POST, so the only thing to
+      // interrupt is that request itself.
+      abortRef.current?.abort();
+      return;
+    }
+
+    // The poll loop is left running on purpose: it's what picks up the
+    // `stopped` event (and the status leaving "running") once the backend
+    // actually tears the job down, the same way it picks up any other event.
+    void fetch(`/api/agent/${jobId}/stop`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).catch((err) => {
+      console.error('Failed to request stop:', err);
+    });
+  }, [token]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -160,6 +189,18 @@ export function useAgentChat(token: string) {
             }
             break;
           }
+          case 'file':
+            setEntries((prev) => [
+              ...prev,
+              { id: nextId(), kind: 'file', filename: event.filename, url: event.url },
+            ]);
+            break;
+          case 'stopped':
+            setEntries((prev) => [
+              ...prev,
+              { id: nextId(), kind: 'stopped', message: event.message },
+            ]);
+            break;
           case 'error':
             setError(new Error(event.message));
             break;
@@ -186,6 +227,7 @@ export function useAgentChat(token: string) {
         }
 
         const { job_id: jobId } = (await startResponse.json()) as AgentStartResponse;
+        jobIdRef.current = jobId;
         setStatus('streaming');
 
         let renderedCount = 0;
@@ -215,11 +257,12 @@ export function useAgentChat(token: string) {
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
+        jobIdRef.current = null;
         setStatus('ready');
       }
     },
     [status, token, threadId],
   );
 
-  return { entries, status, error, sendMessage, threadId };
+  return { entries, status, error, sendMessage, stop, threadId };
 }

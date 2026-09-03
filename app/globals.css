@@ -168,8 +168,9 @@ body {
   outline-offset: 2px;
 }
 
-/* The composer is deliberately chrome-less — it signals focus with the accent
-   glow shadow instead of the global ring. Specificity beats *:focus-visible. */
+/* The composer's textarea is deliberately chrome-less — the bordered shell
+   around it signals focus with the accent glow shadow instead of the global
+   ring. Specificity beats *:focus-visible. */
 .composer-input:focus,
 .composer-input:focus-visible {
   outline: none;

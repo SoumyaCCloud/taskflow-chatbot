@@ -6,7 +6,10 @@ import { useRef, useEffect } from 'react';
 import { Streamdown } from 'streamdown';
 
 import { AssistantAvatar } from '@/components/assistant-avatar';
+import { CopyButton } from '@/components/copy-button';
+import { FileEvent } from '@/components/file-event';
 import { ReasoningEvent } from '@/components/reasoning-event';
+import { StoppedEvent } from '@/components/stopped-event';
 import { ToolEvent } from '@/components/tool-event';
 import { TypingIndicator } from '@/components/typing-indicator';
 import { UserAvatar } from '@/components/user-avatar';
@@ -17,6 +20,7 @@ type ChatMessagesProps = {
   status: ChatStatus;
   isLoading: boolean;
   error?: Error;
+  token: string;
 };
 
 /*
@@ -27,7 +31,7 @@ type ChatMessagesProps = {
 const BUBBLE_BASE =
   'max-w-[85%] rounded-3xl px-5 shadow-card text-[15px] leading-relaxed';
 
-export function ChatMessages({ entries, status, isLoading, error }: ChatMessagesProps) {
+export function ChatMessages({ entries, status, isLoading, error, token }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,6 +58,16 @@ export function ChatMessages({ entries, status, isLoading, error }: ChatMessages
             return <ReasoningEvent key={entry.id} text={entry.text} />;
           }
 
+          if (entry.kind === 'file') {
+            return (
+              <FileEvent key={entry.id} filename={entry.filename} url={entry.url} token={token} />
+            );
+          }
+
+          if (entry.kind === 'stopped') {
+            return <StoppedEvent key={entry.id} message={entry.message} />;
+          }
+
           if (entry.kind === 'tool') {
             return (
               <ToolEvent
@@ -78,21 +92,26 @@ export function ChatMessages({ entries, status, isLoading, error }: ChatMessages
             >
               {!isUser && <AssistantAvatar />}
 
-              <div
-                className={`${BUBBLE_BASE} ${isUser
-                  ? 'rounded-br-lg bg-accent py-3 text-primary-foreground'
-                  : 'rounded-bl-lg border border-border-subtle bg-bg-700 py-4 text-text-100'
-                  }`}
-              >
-                {/* Only the model emits markdown; user text stays literal so
-                    typing **foo** shows the asterisks rather than bolding. */}
-                {isUser ? (
-                  <span className="whitespace-pre-wrap">{entry.text}</span>
-                ) : (
-                  <Streamdown animated isAnimating={status === 'streaming'}>
-                    {entry.text}
-                  </Streamdown>
-                )}
+              <div className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+                <div
+                  className={`${BUBBLE_BASE} ${isUser
+                    ? 'rounded-br-lg bg-accent py-3 text-primary-foreground'
+                    : 'rounded-bl-lg border border-border-subtle bg-bg-700 py-4 text-text-100'
+                    }`}
+                >
+                  {/* Only the model emits markdown; user text stays literal so
+                      typing **foo** shows the asterisks rather than bolding. */}
+                  {isUser ? (
+                    <span className="whitespace-pre-wrap">{entry.text}</span>
+                  ) : (
+                    <Streamdown animated isAnimating={status === 'streaming'}>
+                      {entry.text}
+                    </Streamdown>
+                  )}
+                </div>
+
+                {/* Copying only ever applies to what the model said. */}
+                {!isUser && entry.text && <CopyButton text={entry.text} />}
               </div>
 
               {/* Sits after the bubble so it lands on the outer edge of the

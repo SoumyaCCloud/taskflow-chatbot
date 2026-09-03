@@ -34,8 +34,11 @@ export function resolveBearer(req: Request): string | null {
 }
 
 export type LocalJob = {
-  status: 'running' | 'completed' | 'error';
+  status: 'running' | 'completed' | 'error' | 'stopped';
   events: AgentEvent[];
+  // Lets stopLocalJob actually cancel the in-flight generation rather than
+  // just declaring it over while streamText keeps running unseen underneath.
+  controller: AbortController;
 };
 
 /*
@@ -56,13 +59,32 @@ export function createLocalJob(id: string): LocalJob {
     const oldest = jobs.keys().next().value;
     if (oldest !== undefined) jobs.delete(oldest);
   }
-  const job: LocalJob = { status: 'running', events: [] };
+  const job: LocalJob = { status: 'running', events: [], controller: new AbortController() };
   jobs.set(id, job);
   return job;
 }
 
 export function getLocalJob(id: string): LocalJob | undefined {
   return jobs.get(id);
+}
+
+/**
+ * Mirrors what the real agent's `/stop` does: end the run and leave a
+ * `stopped` event in its wake for the next poll to pick up. Returns false for
+ * a job that's unknown or already finished, so the route can 404 rather than
+ * pretend a stop happened.
+ */
+export function stopLocalJob(id: string): boolean {
+  const job = jobs.get(id);
+  if (!job || job.status !== 'running') return false;
+
+  job.controller.abort();
+  job.events.push({
+    type: 'stopped',
+    message: 'Stopped by request. You can resume by typing Continue.',
+  });
+  job.status = 'stopped';
+  return true;
 }
 
 /**
