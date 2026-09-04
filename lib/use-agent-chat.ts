@@ -193,16 +193,21 @@ export function useAgentChat(token: string) {
           case 'tool_result': {
             const queue = pendingToolCalls.get(event.tool);
             const id = queue?.shift();
+            // A handoff's result is just an echo of the reason its call
+            // already showed — nothing new to display, so the chip just
+            // needs to stop spinning, not gain an output line.
+            const isHandoff = event.tool.startsWith('handoff_to_');
+
             if (id) {
               const endedAt = Date.now();
               setEntries((prev) =>
                 prev.map((entry) =>
                   entry.id === id && entry.kind === 'tool'
-                    ? { ...entry, output: event.output, status: 'done', endedAt }
+                    ? { ...entry, status: 'done', endedAt, ...(isHandoff ? {} : { output: event.output }) }
                     : entry,
                 ),
               );
-            } else {
+            } else if (!isHandoff) {
               // A result with no matching call (e.g. reconnect mid-turn)
               // still deserves a line rather than being dropped silently —
               // there's no real start time to show, so it reads as instant.

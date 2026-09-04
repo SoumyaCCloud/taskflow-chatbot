@@ -10,11 +10,16 @@ function badRequest(message: string, status: number): Response {
 }
 
 /**
- * Proxies a file a `file` event pointed at. The URL lives on the agent's own
- * host behind the same bearer as chat — a plain `<a href>` can't attach that
- * header, and fetching it directly from the browser would mean sending the
- * token to a third-party origin. Both are avoided by routing the download
- * through here instead.
+ * Proxies a file a `file` event pointed at. A plain `<a href>` straight to the
+ * agent's own host would work for the reference test harness (its download
+ * link carries no Authorization header at all — the file id itself seems to
+ * be the only capability needed, and the file is deleted server-side on
+ * first fetch regardless of how that fetch was made), but doing that from the
+ * browser would still mean either leaking the bearer to a third-party origin
+ * or, if the token turns out to matter after all, having no way to attach it
+ * from a navigation. Routing through here avoids both without assuming which
+ * way the real backend behaves: the bearer is forwarded when we have one,
+ * but — unlike the rest of this API — its absence isn't treated as a 401.
  *
  * The target is restricted to the configured agent origin so a crafted `url`
  * query param can't turn this into an open SSRF relay to an arbitrary host —
@@ -47,12 +52,11 @@ export async function GET(req: Request) {
   }
 
   const authorization = resolveBearer(req);
-  if (!authorization) return badRequest('Missing bearer token.', 401);
 
   let upstream: Response;
   try {
     upstream = await fetch(resolved, {
-      headers: { Authorization: authorization },
+      headers: authorization ? { Authorization: authorization } : {},
     });
   } catch (error) {
     console.error('[agent] file download unreachable:', error);

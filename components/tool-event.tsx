@@ -1,8 +1,16 @@
 'use client';
 
-import { ChevronRight, CircleCheck, LoaderCircle } from 'lucide-react';
+import { ArrowRightLeft, ChevronRight, CircleCheck, LoaderCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
+
+const HANDOFF_PREFIX = 'handoff_to_';
+
+/** "handoff_to_billing_team" -> "Billing team" — a domain name worth reading, not a tool id. */
+function formatHandoffDomain(tool: string): string {
+  const domain = tool.slice(HANDOFF_PREFIX.length).replace(/_/g, ' ');
+  return domain.charAt(0).toUpperCase() + domain.slice(1);
+}
 
 /** "1s" while under a minute, "1m 04s" past it — Claude's own tool-call clock does the same. */
 function formatElapsed(ms: number): string {
@@ -33,6 +41,11 @@ function useElapsed(startedAt: number, endedAt: number | undefined): string {
  * tool calls — including the small running clock beside the name. Args/output
  * are collapsed by default and expand on click so a turn that calls three
  * tools doesn't shout over the answer.
+ *
+ * A `handoff_to_*` call is a specialist routing the turn to another domain,
+ * not a real backend action, so it reads as "Handing off to X: reason"
+ * instead — see lib/use-agent-chat.ts for why its tool_result never adds an
+ * output line here (it's just an echo of that same reason).
  */
 export function ToolEvent({
   tool,
@@ -51,6 +64,15 @@ export function ToolEvent({
 }) {
   const [open, setOpen] = useState(false);
   const elapsed = useElapsed(startedAt, endedAt);
+
+  // A specialist explicitly routing the rest of the turn to another domain
+  // (agent/handoff_tools.py), not a real backend action — reads as "Handing
+  // off to X: reason" rather than a generic tool call.
+  const isHandoff = tool.startsWith(HANDOFF_PREFIX);
+  const handoffReason =
+    isHandoff && args && typeof args === 'object' && 'reason' in args
+      ? String((args as { reason?: unknown }).reason ?? '')
+      : undefined;
 
   const argsText = args === undefined ? undefined : typeof args === 'string' ? args : JSON.stringify(args);
   const hasDetail = argsText !== undefined || output !== undefined;
@@ -72,13 +94,25 @@ export function ToolEvent({
         >
           {status === 'running' ? (
             <LoaderCircle size={13} strokeWidth={2} className="shrink-0 animate-spin text-accent" />
+          ) : isHandoff ? (
+            <ArrowRightLeft size={13} strokeWidth={2} className="shrink-0 text-status-green" />
           ) : (
             <CircleCheck size={13} strokeWidth={2} className="shrink-0 text-status-green" />
           )}
           <span>
-            {status === 'running' ? 'Calling ' : 'Called '}
-            <span className="font-medium text-text-100">{tool}</span>
+            {isHandoff ? (
+              <>
+                {status === 'running' ? 'Handing off to ' : 'Handed off to '}
+                <span className="font-medium text-text-100">{formatHandoffDomain(tool)}</span>
+              </>
+            ) : (
+              <>
+                {status === 'running' ? 'Calling ' : 'Called '}
+                <span className="font-medium text-text-100">{tool}</span>
+              </>
+            )}
           </span>
+          {handoffReason && <span className="max-w-[200px] truncate text-text-300">· {handoffReason}</span>}
           <span className="text-text-300">{elapsed}</span>
           {hasDetail && (
             <ChevronRight

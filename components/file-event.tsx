@@ -5,12 +5,13 @@ import { motion } from 'motion/react';
 import { useState } from 'react';
 
 /*
- * A file the agent produced. `url` lives on the agent's own host behind the
- * same bearer as chat, so this can't be a plain `<a href>` — a browser
- * navigation can't attach an Authorization header, and doing it client-side
- * would mean sending the token to a third-party origin. Instead this fetches
- * the file through our own same-origin proxy (which attaches the bearer
- * server-side) and hands the browser the result as a blob to save.
+ * A file the agent produced. `url` lives on the agent's own host, so this
+ * can't be a plain `<a href>` — a browser navigation can't attach an
+ * Authorization header, and doing it client-side would mean sending the
+ * token to a third-party origin even if the endpoint turns out not to need
+ * it. Instead this fetches the file through our own same-origin proxy
+ * (which forwards the bearer server-side when there is one) and hands the
+ * browser the result as a blob to save.
  */
 export function FileEvent({
   filename,

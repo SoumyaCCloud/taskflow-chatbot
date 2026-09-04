@@ -13,11 +13,13 @@
  *   POST /api/agent/{job_id}/stop
  *     -> {"ok": true}   (the running job's next poll carries a `stopped` event)
  *
- * A `file` event's `url` lives on the agent's own host and is gated by the
- * same bearer as chat — the browser can't fetch it directly (the token would
- * have to leave our origin, and a plain `<a>` can't attach it as a header
- * anyway), so `GET /api/agent/download` proxies it instead. See that route
- * for why the target is restricted to the agent's origin.
+ * A `file` event's `url` lives on the agent's own host, possibly (the
+ * reference test harness doesn't bother) gated by the same bearer as chat —
+ * the browser can't fetch it directly either way (a token would have to
+ * leave our origin, and a plain `<a>` can't attach one as a header anyway),
+ * so `GET /api/agent/download` proxies it instead. See that route for why
+ * the target is restricted to the agent's origin, and why the bearer it
+ * forwards is optional rather than required.
  *
  * Both ends of the app share these types — `app/api/agent/**\/route.ts` writes
  * them, `lib/use-agent-chat.ts` reads them — so a change to the shape breaks
@@ -43,7 +45,7 @@ export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
 export const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'] as const satisfies readonly ThinkingLevel[];
 
 /** The level a fresh composer starts on. */
-export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'medium';
+export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'low';
 
 /** Narrows an unvalidated value (a request body, say) to a level. */
 export function isThinkingLevel(value: unknown): value is ThinkingLevel {

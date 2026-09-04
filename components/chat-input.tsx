@@ -73,7 +73,7 @@ export function ChatInput({
       <div className="rounded-3xl border border-border-subtle bg-bg-600 px-4 pb-2 pt-3 shadow-card transition-colors focus-within:border-accent/40 focus-within:shadow-glow">
         <textarea
           ref={textareaRef}
-          rows={1}
+          rows={2}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
