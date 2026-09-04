@@ -32,10 +32,29 @@ export type AgentEvent =
   | { type: 'stopped'; message: string }
   | { type: 'error'; message: string };
 
+/**
+ * How much reasoning the agent should spend on a turn. Picked per-message from
+ * the composer's dropdown, so it travels with the request rather than being a
+ * property of the thread.
+ */
+export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
+
+/** Every level, in ascending order — the composer renders the dropdown from this. */
+export const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'] as const satisfies readonly ThinkingLevel[];
+
+/** The level a fresh composer starts on. */
+export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'medium';
+
+/** Narrows an unvalidated value (a request body, say) to a level. */
+export function isThinkingLevel(value: unknown): value is ThinkingLevel {
+  return THINKING_LEVELS.includes(value as ThinkingLevel);
+}
+
 /** What the client POSTs. History lives server-side, keyed by `thread_id`. */
 export type AgentRequest = {
   message: string;
   thread_id: string;
+  thinking_level: ThinkingLevel;
 };
 
 /** What starting a turn returns: the job id to poll for progress. */

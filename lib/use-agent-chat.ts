@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { AgentEvent, AgentJobResponse, AgentStartResponse } from '@/lib/agent-events';
+import {
+  DEFAULT_THINKING_LEVEL,
+  type AgentEvent,
+  type AgentJobResponse,
+  type AgentRequest,
+  type AgentStartResponse,
+  type ThinkingLevel,
+} from '@/lib/agent-events';
 
 /*
  * The chat transcript. Tool activity is a sibling of the messages rather than
@@ -109,7 +116,10 @@ export function useAgentChat(token: string) {
   }, [token]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    // The level is per-turn rather than per-thread — it is whatever the
+    // composer's dropdown read at the moment Send was pressed, so changing it
+    // afterwards never rewrites a turn already in flight.
+    async (text: string, thinkingLevel: ThinkingLevel = DEFAULT_THINKING_LEVEL) => {
       const message = text.trim();
       if (!message || status !== 'ready') return;
 
@@ -240,7 +250,11 @@ export function useAgentChat(token: string) {
             // would override a session the server can see and we cannot.
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ message, thread_id: threadId }),
+          body: JSON.stringify({
+            message,
+            thread_id: threadId,
+            thinking_level: thinkingLevel,
+          } satisfies AgentRequest),
           signal: controller.signal,
         });
 

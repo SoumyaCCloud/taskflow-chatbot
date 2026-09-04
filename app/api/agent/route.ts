@@ -2,7 +2,12 @@ import { google } from '@ai-sdk/google';
 import { streamText, type ModelMessage } from 'ai';
 
 import { createLocalJob, historyFor, resolveBearer, MAX_HISTORY, type LocalJob } from '@/lib/agent-server';
-import type { AgentRequest, AgentStartResponse } from '@/lib/agent-events';
+import {
+  DEFAULT_THINKING_LEVEL,
+  isThinkingLevel,
+  type AgentRequest,
+  type AgentStartResponse,
+} from '@/lib/agent-events';
 
 // A turn can run several tool calls before it answers; this is headroom for
 // the local (Gemini) fallback's background generation, not for this request,
@@ -54,9 +59,24 @@ export async function POST(req: Request) {
   if (!message) return badRequest('`message` is required.', 400);
   if (!threadId) return badRequest('`thread_id` is required.', 400);
 
+  // An absent level is fine — an older client, or a caller that doesn't care —
+  // and falls back to the same default the composer opens on. A *present* but
+  // unrecognised one is a caller bug worth naming rather than silently
+  // downgrading, since it would otherwise look like the setting was honoured.
+  if (body.thinking_level !== undefined && !isThinkingLevel(body.thinking_level)) {
+    return badRequest('`thinking_level` must be one of: minimal, low, medium, high.', 400);
+  }
+  const thinkingLevel = body.thinking_level ?? DEFAULT_THINKING_LEVEL;
+
+  const payload: AgentRequest = {
+    message,
+    thread_id: threadId,
+    thinking_level: thinkingLevel,
+  };
+
   return UPSTREAM
-    ? startUpstreamJob(UPSTREAM, { message, thread_id: threadId }, authorization)
-    : startLocalJob({ message, thread_id: threadId });
+    ? startUpstreamJob(UPSTREAM, payload, authorization)
+    : startLocalJob(payload);
 }
 
 /** Pass-through to the real agent: same body, same bearer, its job id handed straight back. */
