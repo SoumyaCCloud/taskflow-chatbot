@@ -9,6 +9,7 @@ import { ChatMessages } from '@/components/chat-messages';
 import { EmptyState } from '@/components/empty-state';
 import { useSessionToken } from '@/components/shell-session-provider';
 import { SuggestedPrompts } from '@/components/suggested-prompts';
+import { DEFAULT_THINKING_LEVEL, type ThinkingLevel } from '@/lib/agent-events';
 import { useAgentChat } from '@/lib/use-agent-chat';
 
 export default function Page() {
@@ -16,6 +17,10 @@ export default function Page() {
   const token = useSessionToken();
   const { entries, status, error, sendMessage, stop } = useAgentChat(token);
   const [input, setInput] = useState('');
+  // Sticky across turns rather than reset after each send: picking "high" once
+  // reads as a mode you stay in until you change it, which is how every other
+  // composer control here behaves.
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(DEFAULT_THINKING_LEVEL);
 
   const isLoading = status === 'submitted' || status === 'streaming';
   // Empty chat centers the composer; the first message drops it to the bottom.
@@ -28,7 +33,7 @@ export default function Page() {
   const handleSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim()) return;
-    void sendMessage(input);
+    void sendMessage(input, thinkingLevel);
     setInput('');
   };
 
@@ -36,7 +41,7 @@ export default function Page() {
   // the chip already reads as the finished question.
   const handlePick = (prompt: string) => {
     if (isLoading) return;
-    void sendMessage(prompt);
+    void sendMessage(prompt, thinkingLevel);
     setInput('');
   };
 
@@ -70,6 +75,8 @@ export default function Page() {
           onSubmit={handleSubmit}
           onStop={stop}
           isLoading={isLoading}
+          thinkingLevel={thinkingLevel}
+          onThinkingLevelChange={setThinkingLevel}
         />
 
         {/* Under the composer, inside the same layout-animated block so the
