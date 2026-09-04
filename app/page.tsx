@@ -15,7 +15,7 @@ import { useAgentChat } from '@/lib/use-agent-chat';
 export default function Page() {
   // The bearer the shell handed the iframe; every turn is authorized with it.
   const token = useSessionToken();
-  const { entries, status, error, sendMessage, stop } = useAgentChat(token);
+  const { entries, status, error, sendMessage, stop, isStopping } = useAgentChat(token);
   const [input, setInput] = useState('');
   // Sticky across turns rather than reset after each send: picking "high" once
   // reads as a mode you stay in until you change it, which is how every other
@@ -75,6 +75,7 @@ export default function Page() {
           onSubmit={handleSubmit}
           onStop={stop}
           isLoading={isLoading}
+          isStopping={isStopping}
           thinkingLevel={thinkingLevel}
           onThinkingLevelChange={setThinkingLevel}
         />

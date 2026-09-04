@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUp, Square } from 'lucide-react';
+import { ArrowUp, LoaderCircle, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useRef, type KeyboardEvent, type SubmitEvent } from 'react';
 
@@ -13,6 +13,7 @@ type ChatInputProps = {
   onSubmit: (e: SubmitEvent<HTMLFormElement>) => void;
   onStop: () => void;
   isLoading: boolean;
+  isStopping: boolean;
   thinkingLevel: ThinkingLevel;
   onThinkingLevelChange: (value: ThinkingLevel) => void;
 };
@@ -27,6 +28,7 @@ export function ChatInput({
   onSubmit,
   onStop,
   isLoading,
+  isStopping,
   thinkingLevel,
   onThinkingLevelChange,
 }: ChatInputProps) {
@@ -95,24 +97,35 @@ export function ChatInput({
           {/* Always present in the same slot, an arrow that never disappears.
               While a turn is running it swaps for a stop square instead of
               hiding, so there is always a control available rather than a
-              live turn with nothing on screen to interrupt it. */}
+              live turn with nothing on screen to interrupt it. Stop's own
+              click is a fire-and-forget POST with no visible effect until the
+              turn actually ends, so `isStopping` gives it a spinner and locks
+              the button — otherwise a click that clearly registered nowhere
+              just looks like it didn't work. */}
           {isLoading ? (
             <motion.button
               type="button"
               onClick={onStop}
-              aria-label="Stop generating"
+              disabled={isStopping}
+              aria-label={isStopping ? 'Stopping…' : 'Stop generating'}
+              title={isStopping ? 'Stopping…' : 'Stop generating'}
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.15 }}
-              className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full bg-accent text-primary-foreground hover:bg-accent-hover"
+              className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-primary-foreground enabled:cursor-pointer enabled:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
             >
-              <Square className="h-3 w-3" fill="currentColor" strokeWidth={0} />
+              {isStopping ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" strokeWidth={2.25} />
+              ) : (
+                <Square className="h-3 w-3" fill="currentColor" strokeWidth={0} />
+              )}
             </motion.button>
           ) : (
             <motion.button
               type="submit"
               disabled={!hasPrompt}
               aria-label="Send message"
+              title="Send message"
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.15 }}

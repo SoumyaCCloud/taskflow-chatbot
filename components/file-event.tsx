@@ -62,6 +62,7 @@ export function FileEvent({
         type="button"
         onClick={handleDownload}
         disabled={state === 'downloading'}
+        title={`Download ${filename}`}
         className="flex w-full max-w-[85%] cursor-pointer items-center gap-3 rounded-2xl border border-border-subtle bg-bg-700 px-4 py-3 text-left shadow-card transition-colors hover:border-accent/50 hover:bg-bg-600 disabled:cursor-wait"
       >
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-bg text-accent">

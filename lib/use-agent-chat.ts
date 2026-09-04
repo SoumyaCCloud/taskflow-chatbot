@@ -74,6 +74,11 @@ export function useAgentChat(token: string) {
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [status, setStatus] = useState<ChatStatus>('ready');
   const [error, setError] = useState<Error | undefined>();
+  // True from the moment Stop is clicked until the turn actually ends —
+  // the click itself is silent (a fire-and-forget POST), so without this the
+  // button gives no sign the press registered until the `stopped` event
+  // eventually arrives on the next poll.
+  const [isStopping, setIsStopping] = useState(false);
 
   // One id for the life of the mounted chat: the server keys history off it, so
   // a new one mid-conversation would silently start the agent over. Lazy
@@ -103,6 +108,8 @@ export function useAgentChat(token: string) {
       abortRef.current?.abort();
       return;
     }
+
+    setIsStopping(true);
 
     // The poll loop is left running on purpose: it's what picks up the
     // `stopped` event (and the status leaving "running") once the backend
@@ -301,10 +308,11 @@ export function useAgentChat(token: string) {
         if (abortRef.current === controller) abortRef.current = null;
         jobIdRef.current = null;
         setStatus('ready');
+        setIsStopping(false);
       }
     },
     [status, token, threadId],
   );
 
-  return { entries, status, error, sendMessage, stop, threadId };
+  return { entries, status, error, sendMessage, stop, isStopping, threadId };
 }

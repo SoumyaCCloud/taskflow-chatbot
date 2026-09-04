@@ -90,6 +90,7 @@ export function ToolEvent({
           onClick={() => hasDetail && setOpen((o) => !o)}
           disabled={!hasDetail}
           aria-expanded={open}
+          title={hasDetail ? (open ? 'Hide details' : 'Show details') : undefined}
           className="flex items-center gap-2 rounded-full border border-border-subtle bg-bg-800 px-3 py-1.5 text-xs text-text-200 transition-colors enabled:hover:bg-bg-700 enabled:cursor-pointer"
         >
           {status === 'running' ? (

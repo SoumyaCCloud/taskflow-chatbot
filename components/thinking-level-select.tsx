@@ -96,6 +96,7 @@ export function ThinkingLevelSelect({
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
         aria-label={`Thinking level: ${LABELS[value].label}`}
+        title={`Thinking level: ${LABELS[value].label} — ${LABELS[value].hint}`}
         className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium text-text-200 transition-colors enabled:cursor-pointer enabled:hover:bg-bg-500 enabled:hover:text-text-100 disabled:cursor-not-allowed disabled:text-text-300 aria-expanded:bg-bg-500 aria-expanded:text-text-100"
       >
         <Brain className="h-[18px] w-[18px]" />

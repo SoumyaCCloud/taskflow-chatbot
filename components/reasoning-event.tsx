@@ -26,6 +26,7 @@ export function ReasoningEvent({ text }: { text: string }) {
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
+          title={open ? 'Hide thought process' : 'Show thought process'}
           className="flex cursor-pointer items-center gap-2 rounded-full border border-border-subtle bg-bg-800 px-3 py-1.5 text-xs text-text-200 transition-colors hover:bg-bg-700"
         >
           <Lightbulb size={13} strokeWidth={2} className="shrink-0 text-status-amber" />
