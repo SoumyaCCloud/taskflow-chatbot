@@ -4,13 +4,15 @@ import { Brain, Check, ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 
+import { Tooltip } from '@/components/tooltip';
 import { THINKING_LEVELS, type ThinkingLevel } from '@/lib/agent-events';
+import type { MenuDirection } from '@/lib/menu-direction';
 
 /*
  * The composer's reasoning-budget picker, sat immediately left of the send
  * button the way Gemini's model chip sits beside its own. It is a plain
  * button + absolutely positioned list rather than a native <select>: the menu
- * has to open *upwards* (the composer lives at the bottom of the viewport)
+ * needs to flip open direction as the composer moves (see `menuDirection`)
  * and carry a description per option, neither of which a <select> can do.
  *
  * The chosen level rides along with each message — see AgentRequest — so
@@ -29,10 +31,12 @@ export function ThinkingLevelSelect({
   value,
   onChange,
   disabled = false,
+  menuDirection,
 }: {
   value: ThinkingLevel;
   onChange: (value: ThinkingLevel) => void;
   disabled?: boolean;
+  menuDirection: MenuDirection;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -87,26 +91,27 @@ export function ThinkingLevelSelect({
           "Think" control reads: a quiet mode switch sitting next to the send
           button, not a second primary action competing with it. The
           hover/open fill is what gives it a hit area to aim at. */}
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
-        onKeyDown={handleKeyDown}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? menuId : undefined}
-        aria-label={`Thinking level: ${LABELS[value].label}`}
-        title={`Thinking level: ${LABELS[value].label} — ${LABELS[value].hint}`}
-        className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium text-text-200 transition-colors enabled:cursor-pointer enabled:hover:bg-bg-500 enabled:hover:text-text-100 disabled:cursor-not-allowed disabled:text-text-300 aria-expanded:bg-bg-500 aria-expanded:text-text-100"
-      >
-        <Brain className="h-[18px] w-[18px]" />
-        {/* The label is the first thing to go on a narrow composer — the icon
-            plus the open menu still say which level is active. */}
-        <span className="hidden sm:inline">{LABELS[value].label}</span>
-        <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
+      <Tooltip content={`Thinking level: ${LABELS[value].label} — ${LABELS[value].hint}`} hidden={isOpen}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen((prev) => !prev)}
+          onKeyDown={handleKeyDown}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? menuId : undefined}
+          aria-label={`Thinking level: ${LABELS[value].label}`}
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium text-text-200 transition-colors enabled:cursor-pointer enabled:hover:bg-bg-500 enabled:hover:text-text-100 disabled:cursor-not-allowed disabled:text-text-300 aria-expanded:bg-bg-500 aria-expanded:text-text-100"
+        >
+          <Brain className="h-[18px] w-[18px]" />
+          {/* The label is the first thing to go on a narrow composer — the icon
+              plus the open menu still say which level is active. */}
+          <span className="hidden sm:inline">{LABELS[value].label}</span>
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </Tooltip>
 
       <AnimatePresence>
         {isOpen && (
@@ -114,14 +119,17 @@ export function ThinkingLevelSelect({
             id={menuId}
             role="listbox"
             aria-label="Thinking level"
-            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            initial={{ opacity: 0, y: menuDirection === 'up' ? 6 : -6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            exit={{ opacity: 0, y: menuDirection === 'up' ? 6 : -6, scale: 0.97 }}
             transition={{ duration: 0.14, ease: [0.4, 0, 0.2, 1] }}
-            // Anchored to the bottom of the trigger and pinned to its right
-            // edge, so it opens over the transcript instead of off-screen
-            // below the composer.
-            className="absolute bottom-full right-0 z-20 mb-2 w-60 origin-bottom-right overflow-hidden rounded-card border border-border-subtle bg-bg-700 p-1 shadow-elevated"
+            // Pinned to the trigger's right edge either way; anchored to its
+            // top or bottom depending on which way the composer currently
+            // has room — see `menuDirection`.
+            className={`absolute right-0 z-20 w-60 overflow-hidden rounded-card border border-border-subtle bg-bg-700 p-1 shadow-elevated ${menuDirection === 'up'
+              ? 'bottom-full mb-2 origin-bottom-right'
+              : 'top-full mt-2 origin-top-right'
+              }`}
           >
             {THINKING_LEVELS.map((level) => {
               const selected = level === value;

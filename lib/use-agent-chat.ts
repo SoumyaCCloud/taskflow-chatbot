@@ -8,8 +8,20 @@ import {
   type AgentJobResponse,
   type AgentRequest,
   type AgentStartResponse,
+  type ModelSelection,
   type ThinkingLevel,
 } from '@/lib/agent-events';
+
+/**
+ * Everything about a turn beyond its text — all optional, all defaulted to
+ * "leave it as configured" (no thinking-level or model override at all)
+ * except the level, which defaults to the composer's own opening value.
+ */
+export type SendMessageOptions = {
+  thinkingLevel?: ThinkingLevel;
+  modelSelection?: ModelSelection | null;
+  summarizerModelSelection?: ModelSelection | null;
+};
 
 /*
  * The chat transcript. Tool activity is a sibling of the messages rather than
@@ -123,10 +135,16 @@ export function useAgentChat(token: string) {
   }, [token]);
 
   const sendMessage = useCallback(
-    // The level is per-turn rather than per-thread — it is whatever the
-    // composer's dropdown read at the moment Send was pressed, so changing it
+    // These are per-turn rather than per-thread — whatever the composer's
+    // controls read at the moment Send was pressed, so changing one
     // afterwards never rewrites a turn already in flight.
-    async (text: string, thinkingLevel: ThinkingLevel = DEFAULT_THINKING_LEVEL) => {
+    async (text: string, options: SendMessageOptions = {}) => {
+      const {
+        thinkingLevel = DEFAULT_THINKING_LEVEL,
+        modelSelection = null,
+        summarizerModelSelection = null,
+      } = options;
+
       const message = text.trim();
       if (!message || status !== 'ready') return;
 
@@ -266,6 +284,15 @@ export function useAgentChat(token: string) {
             message,
             thread_id: threadId,
             thinking_level: thinkingLevel,
+            ...(modelSelection
+              ? { model_provider: modelSelection.provider, model_name: modelSelection.model }
+              : {}),
+            ...(summarizerModelSelection
+              ? {
+                summarizer_model_provider: summarizerModelSelection.provider,
+                summarizer_model_name: summarizerModelSelection.model,
+              }
+              : {}),
           } satisfies AgentRequest),
           signal: controller.signal,
         });

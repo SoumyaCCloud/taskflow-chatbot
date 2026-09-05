@@ -4,8 +4,11 @@ import { ArrowUp, LoaderCircle, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useRef, type KeyboardEvent, type SubmitEvent } from 'react';
 
+import { ModelConfigPopover } from '@/components/model-config-popover';
 import { ThinkingLevelSelect } from '@/components/thinking-level-select';
-import type { ThinkingLevel } from '@/lib/agent-events';
+import { Tooltip } from '@/components/tooltip';
+import type { ModelSelection, ThinkingLevel } from '@/lib/agent-events';
+import type { MenuDirection } from '@/lib/menu-direction';
 
 type ChatInputProps = {
   value: string;
@@ -16,6 +19,11 @@ type ChatInputProps = {
   isStopping: boolean;
   thinkingLevel: ThinkingLevel;
   onThinkingLevelChange: (value: ThinkingLevel) => void;
+  modelSelection: ModelSelection | null;
+  onModelSelectionChange: (value: ModelSelection | null) => void;
+  summarizerModelSelection: ModelSelection | null;
+  onSummarizerModelSelectionChange: (value: ModelSelection | null) => void;
+  menuDirection: MenuDirection;
 };
 
 // Grows with the content up to this height, then scrolls internally instead
@@ -31,6 +39,11 @@ export function ChatInput({
   isStopping,
   thinkingLevel,
   onThinkingLevelChange,
+  modelSelection,
+  onModelSelectionChange,
+  summarizerModelSelection,
+  onSummarizerModelSelectionChange,
+  menuDirection,
 }: ChatInputProps) {
   const hasPrompt = value.trim().length > 0;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -83,57 +96,74 @@ export function ChatInput({
           className="composer-input block max-h-[200px] w-full resize-none overflow-y-auto bg-transparent px-1 text-[15px] leading-6 text-text-100 placeholder:text-text-300"
         />
 
-        {/* The toolbar. Right-aligned as a group, with the reasoning picker
-            immediately left of the send button — `mt-2` is the only gap
-            between it and the text, so the row stays visually part of the
-            same box rather than reading as a separate bar. */}
-        <div className="mt-2 flex items-center justify-end gap-1">
-          <ThinkingLevelSelect
-            value={thinkingLevel}
-            onChange={onThinkingLevelChange}
+        {/* The toolbar. `justify-between` splits it into two groups: the
+            model-config chip at the bottom-left (mirroring where a "+"
+            attachment button usually lives) and the reasoning picker plus
+            send/stop at the bottom-right — `mt-2` is the only gap between
+            the row and the text, so it stays visually part of the same box
+            rather than reading as a separate bar. */}
+        <div className="mt-2 flex items-center justify-between gap-1">
+          <ModelConfigPopover
+            modelSelection={modelSelection}
+            onModelSelectionChange={onModelSelectionChange}
+            summarizerModelSelection={summarizerModelSelection}
+            onSummarizerModelSelectionChange={onSummarizerModelSelectionChange}
             disabled={isLoading}
+            menuDirection={menuDirection}
           />
 
-          {/* Always present in the same slot, an arrow that never disappears.
-              While a turn is running it swaps for a stop square instead of
-              hiding, so there is always a control available rather than a
-              live turn with nothing on screen to interrupt it. Stop's own
-              click is a fire-and-forget POST with no visible effect until the
-              turn actually ends, so `isStopping` gives it a spinner and locks
-              the button — otherwise a click that clearly registered nowhere
-              just looks like it didn't work. */}
-          {isLoading ? (
-            <motion.button
-              type="button"
-              onClick={onStop}
-              disabled={isStopping}
-              aria-label={isStopping ? 'Stopping…' : 'Stop generating'}
-              title={isStopping ? 'Stopping…' : 'Stop generating'}
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.15 }}
-              className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-primary-foreground enabled:cursor-pointer enabled:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
-            >
-              {isStopping ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" strokeWidth={2.25} />
-              ) : (
-                <Square className="h-3 w-3" fill="currentColor" strokeWidth={0} />
-              )}
-            </motion.button>
-          ) : (
-            <motion.button
-              type="submit"
-              disabled={!hasPrompt}
-              aria-label="Send message"
-              title="Send message"
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.15 }}
-              className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-primary-foreground enabled:cursor-pointer enabled:hover:bg-accent-hover disabled:bg-bg-500 disabled:text-text-300"
-            >
-              <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
-            </motion.button>
-          )}
+          <div className="flex items-center gap-1">
+            <ThinkingLevelSelect
+              value={thinkingLevel}
+              onChange={onThinkingLevelChange}
+              disabled={isLoading}
+              menuDirection={menuDirection}
+            />
+
+            {/* Always present in the same slot, an arrow that never
+                disappears. While a turn is running it swaps for a stop
+                square instead of hiding, so there is always a control
+                available rather than a live turn with nothing on screen to
+                interrupt it. Stop's own click is a fire-and-forget POST with
+                no visible effect until the turn actually ends, so
+                `isStopping` gives it a spinner and locks the button —
+                otherwise a click that clearly registered nowhere just looks
+                like it didn't work. */}
+            {isLoading ? (
+              <Tooltip content={isStopping ? 'Stopping…' : 'Stop generating'}>
+                <motion.button
+                  type="button"
+                  onClick={onStop}
+                  disabled={isStopping}
+                  aria-label={isStopping ? 'Stopping…' : 'Stop generating'}
+                  initial={{ opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.15 }}
+                  className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-primary-foreground enabled:cursor-pointer enabled:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isStopping ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" strokeWidth={2.25} />
+                  ) : (
+                    <Square className="h-3 w-3" fill="currentColor" strokeWidth={0} />
+                  )}
+                </motion.button>
+              </Tooltip>
+            ) : (
+              <Tooltip content="Send message">
+                <motion.button
+                  type="submit"
+                  disabled={!hasPrompt}
+                  aria-label="Send message"
+                  initial={{ opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.15 }}
+                  className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-primary-foreground enabled:cursor-pointer enabled:hover:bg-accent-hover disabled:bg-bg-500 disabled:text-text-300"
+                >
+                  <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
+                </motion.button>
+              </Tooltip>
+            )}
+          </div>
         </div>
       </div>
     </form>

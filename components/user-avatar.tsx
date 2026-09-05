@@ -1,6 +1,7 @@
 'use client';
 
 import { useUserName } from '@/components/shell-user-provider';
+import { Tooltip } from '@/components/tooltip';
 import { initialsFromName } from '@/lib/shell-user';
 
 /*
@@ -17,14 +18,15 @@ export function UserAvatar() {
   if (!initials) return null;
 
   return (
-    <div
-      // Decorative: the initials would be read out as nonsense, and the name is
-      // already available to a pointer via the tooltip.
-      aria-hidden="true"
-      title={name}
-      className="grid size-8 shrink-0 select-none place-items-center rounded-full border border-accent/30 bg-accent-bg text-[11px] font-semibold tracking-wide text-accent-hover"
-    >
-      {initials}
-    </div>
+    <Tooltip content={name}>
+      <div
+        // Decorative: the initials would be read out as nonsense, and the name is
+        // already available to a pointer via the tooltip.
+        aria-hidden="true"
+        className="grid size-8 shrink-0 select-none place-items-center rounded-full border border-accent/30 bg-accent-bg text-[11px] font-semibold tracking-wide text-accent-hover"
+      >
+        {initials}
+      </div>
+    </Tooltip>
   );
 }

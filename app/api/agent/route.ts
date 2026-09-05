@@ -4,9 +4,11 @@ import { streamText, type ModelMessage } from 'ai';
 import { createLocalJob, historyFor, resolveBearer, MAX_HISTORY, type LocalJob } from '@/lib/agent-server';
 import {
   DEFAULT_THINKING_LEVEL,
+  isModelProvider,
   isThinkingLevel,
   type AgentRequest,
   type AgentStartResponse,
+  type ModelProvider,
 } from '@/lib/agent-events';
 
 // A turn can run several tool calls before it answers; this is headroom for
@@ -37,6 +39,35 @@ function badRequest(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
 }
 
+/**
+ * Validates one provider/model pair off the request body — `field` names the
+ * pair for the error message (e.g. "model" or "summarizer_model"). The two
+ * always travel together: a lone provider or model name is meaningless to
+ * the backend (main.py's own override check would reject it the same way),
+ * so a partial pair is a caller bug worth naming here rather than silently
+ * dropped or half-applied.
+ */
+function readModelOverride(
+  body: Record<string, unknown>,
+  field: string,
+): { provider: ModelProvider; model: string } | undefined | Response {
+  const providerKey = `${field}_provider`;
+  const nameKey = `${field}_name`;
+  const provider = body[providerKey];
+  const name = body[nameKey];
+
+  if (provider === undefined && name === undefined) return undefined;
+
+  if (!isModelProvider(provider) || typeof name !== 'string' || !name.trim()) {
+    return badRequest(
+      `\`${providerKey}\` and \`${nameKey}\` must both be set — \`${providerKey}\` one of: google_genai, groq.`,
+      400,
+    );
+  }
+
+  return { provider, model: name.trim() };
+}
+
 export async function POST(req: Request) {
   const authorization = resolveBearer(req);
 
@@ -46,9 +77,12 @@ export async function POST(req: Request) {
     return badRequest('Missing bearer token.', 401);
   }
 
-  let body: Partial<AgentRequest>;
+  // A loose record rather than `Partial<AgentRequest>`: readModelOverride
+  // indexes it by a computed field name, and every field here is validated
+  // by hand below regardless of what shape TS thinks it already has.
+  let body: Record<string, unknown>;
   try {
-    body = (await req.json()) as Partial<AgentRequest>;
+    body = (await req.json()) as Record<string, unknown>;
   } catch {
     return badRequest('Body must be JSON.', 400);
   }
@@ -66,12 +100,22 @@ export async function POST(req: Request) {
   if (body.thinking_level !== undefined && !isThinkingLevel(body.thinking_level)) {
     return badRequest('`thinking_level` must be one of: minimal, low, medium, high.', 400);
   }
-  const thinkingLevel = body.thinking_level ?? DEFAULT_THINKING_LEVEL;
+  const thinkingLevel = isThinkingLevel(body.thinking_level) ? body.thinking_level : DEFAULT_THINKING_LEVEL;
+
+  const model = readModelOverride(body, 'model');
+  if (model instanceof Response) return model;
+
+  const summarizerModel = readModelOverride(body, 'summarizer_model');
+  if (summarizerModel instanceof Response) return summarizerModel;
 
   const payload: AgentRequest = {
     message,
     thread_id: threadId,
     thinking_level: thinkingLevel,
+    ...(model ? { model_provider: model.provider, model_name: model.model } : {}),
+    ...(summarizerModel
+      ? { summarizer_model_provider: summarizerModel.provider, summarizer_model_name: summarizerModel.model }
+      : {}),
   };
 
   return UPSTREAM

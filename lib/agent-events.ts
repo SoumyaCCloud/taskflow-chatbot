@@ -52,11 +52,84 @@ export function isThinkingLevel(value: unknown): value is ThinkingLevel {
   return THINKING_LEVELS.includes(value as ThinkingLevel);
 }
 
-/** What the client POSTs. History lives server-side, keyed by `thread_id`. */
+/** Who serves a model override — the two providers the deployment has wired up. */
+export type ModelProvider = 'google_genai' | 'groq';
+
+export function isModelProvider(value: unknown): value is ModelProvider {
+  return value === 'google_genai' || value === 'groq';
+}
+
+/** A concrete provider+model pair. The two always travel together — a lone provider or model name is meaningless to the backend. */
+export type ModelSelection = {
+  provider: ModelProvider;
+  model: string;
+};
+
+export type ModelOption = {
+  label: string;
+  selection: ModelSelection;
+};
+
+export type ModelProviderGroup = {
+  provider: ModelProvider;
+  label: string;
+  options: ModelOption[];
+};
+
+/**
+ * The fixed model catalog, grouped by provider for the composer's picker.
+ * Mirrors the reference test harness's <select> options exactly — this list
+ * is deployment configuration, not something either UI derives on its own.
+ */
+export const MODEL_GROUPS: ModelProviderGroup[] = [
+  {
+    provider: 'google_genai',
+    label: 'Gemini',
+    options: [
+      { label: 'Gemini 3.1 Flash-Lite', selection: { provider: 'google_genai', model: 'gemini-3.1-flash-lite' } },
+      { label: 'Gemini 3.5 Flash-Lite', selection: { provider: 'google_genai', model: 'gemini-3.5-flash-lite' } },
+      { label: 'Gemini 3.5 Flash', selection: { provider: 'google_genai', model: 'gemini-3.5-flash' } },
+    ],
+  },
+  {
+    provider: 'groq',
+    label: 'Groq',
+    options: [
+      { label: 'GPT-OSS 120B', selection: { provider: 'groq', model: 'openai/gpt-oss-120b' } },
+      { label: 'GPT-OSS 20B', selection: { provider: 'groq', model: 'openai/gpt-oss-20b' } },
+      { label: 'Qwen3.6 27B', selection: { provider: 'groq', model: 'qwen/qwen3.6-27b' } },
+    ],
+  },
+];
+
+/** Looks up the option a stored selection came from, e.g. to show its label in a trigger button. */
+export function findModelOption(selection: ModelSelection | null): ModelOption | undefined {
+  if (!selection) return undefined;
+  for (const group of MODEL_GROUPS) {
+    const found = group.options.find(
+      (option) =>
+        option.selection.provider === selection.provider && option.selection.model === selection.model,
+    );
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/**
+ * What the client POSTs. History lives server-side, keyed by `thread_id`.
+ * The model fields are optional and travel in pairs — present means "override
+ * the deployment default for this turn," absent means "use it as configured."
+ * `model_*` covers the supervisor and every specialist; `summarizer_model_*`
+ * is independent and only affects the summarizer.
+ */
 export type AgentRequest = {
   message: string;
   thread_id: string;
   thinking_level: ThinkingLevel;
+  model_provider?: ModelProvider;
+  model_name?: string;
+  summarizer_model_provider?: ModelProvider;
+  summarizer_model_name?: string;
 };
 
 /** What starting a turn returns: the job id to poll for progress. */

@@ -4,6 +4,8 @@ import { ArrowRightLeft, ChevronRight, CircleCheck, LoaderCircle } from 'lucide-
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 
+import { Tooltip } from '@/components/tooltip';
+
 const HANDOFF_PREFIX = 'handoff_to_';
 
 /** "handoff_to_billing_team" -> "Billing team" — a domain name worth reading, not a tool id. */
@@ -85,44 +87,59 @@ export function ToolEvent({
       className="flex justify-start pl-10"
     >
       <div className="flex max-w-[85%] flex-col items-start gap-1.5">
-        <button
-          type="button"
-          onClick={() => hasDetail && setOpen((o) => !o)}
-          disabled={!hasDetail}
-          aria-expanded={open}
-          title={hasDetail ? (open ? 'Hide details' : 'Show details') : undefined}
-          className="flex items-center gap-2 rounded-full border border-border-subtle bg-bg-800 px-3 py-1.5 text-xs text-text-200 transition-colors enabled:hover:bg-bg-700 enabled:cursor-pointer"
-        >
-          {status === 'running' ? (
-            <LoaderCircle size={13} strokeWidth={2} className="shrink-0 animate-spin text-accent" />
-          ) : isHandoff ? (
-            <ArrowRightLeft size={13} strokeWidth={2} className="shrink-0 text-status-green" />
+        {(() => {
+          const trigger = (
+            <button
+              type="button"
+              onClick={() => hasDetail && setOpen((o) => !o)}
+              disabled={!hasDetail}
+              aria-expanded={open}
+              className="flex items-center gap-2 rounded-full border border-border-subtle bg-bg-800 px-3 py-1.5 text-xs text-text-200 transition-colors enabled:hover:bg-bg-700 enabled:cursor-pointer"
+            >
+              {status === 'running' ? (
+                <LoaderCircle size={13} strokeWidth={2} className="shrink-0 animate-spin text-accent" />
+              ) : isHandoff ? (
+                <ArrowRightLeft size={13} strokeWidth={2} className="shrink-0 text-status-green" />
+              ) : (
+                <CircleCheck size={13} strokeWidth={2} className="shrink-0 text-status-green" />
+              )}
+              <span>
+                {isHandoff ? (
+                  <>
+                    {status === 'running' ? 'Handing off to ' : 'Handed off to '}
+                    <span className="font-medium text-text-100">{formatHandoffDomain(tool)}</span>
+                  </>
+                ) : (
+                  <>
+                    {status === 'running' ? 'Calling ' : 'Called '}
+                    <span className="font-medium text-text-100">{tool}</span>
+                  </>
+                )}
+              </span>
+              {handoffReason && (
+                <span className="max-w-[200px] truncate text-text-300">· {handoffReason}</span>
+              )}
+              <span className="text-text-300">{elapsed}</span>
+              {hasDetail && (
+                <ChevronRight
+                  size={12}
+                  strokeWidth={2}
+                  className={`shrink-0 text-text-300 transition-transform ${open ? 'rotate-90' : ''}`}
+                />
+              )}
+            </button>
+          );
+
+          // A tooltip only makes sense once there's something to reveal —
+          // there's nothing to "show" or "hide" on a call with no args or
+          // output, so the disabled trigger stays bare rather than hinting
+          // at an action that doesn't exist.
+          return hasDetail ? (
+            <Tooltip content={open ? 'Hide details' : 'Show details'}>{trigger}</Tooltip>
           ) : (
-            <CircleCheck size={13} strokeWidth={2} className="shrink-0 text-status-green" />
-          )}
-          <span>
-            {isHandoff ? (
-              <>
-                {status === 'running' ? 'Handing off to ' : 'Handed off to '}
-                <span className="font-medium text-text-100">{formatHandoffDomain(tool)}</span>
-              </>
-            ) : (
-              <>
-                {status === 'running' ? 'Calling ' : 'Called '}
-                <span className="font-medium text-text-100">{tool}</span>
-              </>
-            )}
-          </span>
-          {handoffReason && <span className="max-w-[200px] truncate text-text-300">· {handoffReason}</span>}
-          <span className="text-text-300">{elapsed}</span>
-          {hasDetail && (
-            <ChevronRight
-              size={12}
-              strokeWidth={2}
-              className={`shrink-0 text-text-300 transition-transform ${open ? 'rotate-90' : ''}`}
-            />
-          )}
-        </button>
+            trigger
+          );
+        })()}
 
         {open && hasDetail && (
           <motion.div
