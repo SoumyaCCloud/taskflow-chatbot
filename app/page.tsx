@@ -15,7 +15,7 @@ import { useAgentChat } from '@/lib/use-agent-chat';
 export default function Page() {
   // The bearer the shell handed the iframe; every turn is authorized with it.
   const token = useSessionToken();
-  const { entries, status, error, sendMessage, stop, isStopping, turnStartedAt } = useAgentChat(token);
+  const { entries, status, sendMessage, stop, isStopping, turnStartedAt } = useAgentChat(token);
   const [input, setInput] = useState('');
   // Sticky across turns rather than reset after each send: picking "high" once
   // reads as a mode you stay in until you change it, which is how every other
@@ -28,7 +28,7 @@ export default function Page() {
   const isLoading = status === 'submitted' || status === 'streaming';
   // Empty chat centers the composer; the first message drops it to the bottom.
   const hasConversation = entries.length > 0;
-  const isEmptyState = !hasConversation && !error;
+  const isEmptyState = !hasConversation;
   // Starters are a substitute for knowing what to ask; the moment you start
   // typing you already know, so they get out of the way.
   const showSuggestions = isEmptyState && input.trim().length === 0;
@@ -51,12 +51,11 @@ export default function Page() {
   return (
     <main className={`mx-auto flex h-full w-full max-w-3xl flex-col p-4 ${hasConversation ? '' : 'justify-center'}`}
     >
-      {(hasConversation || error) && (
+      {hasConversation && (
         <ChatMessages
           entries={entries}
           status={status}
           isLoading={isLoading}
-          error={error}
           token={token}
           turnStartedAt={turnStartedAt}
         />

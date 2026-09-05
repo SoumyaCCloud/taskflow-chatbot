@@ -1,12 +1,13 @@
 'use client';
 
-import { ArrowDown, CircleAlert } from 'lucide-react';
+import { ArrowDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRef, useState, useEffect } from 'react';
 import { Streamdown } from 'streamdown';
 
 import { AssistantAvatar } from '@/components/assistant-avatar';
 import { CopyButton } from '@/components/copy-button';
+import { ErrorEvent } from '@/components/error-event';
 import { FileEvent } from '@/components/file-event';
 import { ReasoningEvent } from '@/components/reasoning-event';
 import { StoppedEvent } from '@/components/stopped-event';
@@ -26,7 +27,6 @@ type ChatMessagesProps = {
   entries: ChatEntry[];
   status: ChatStatus;
   isLoading: boolean;
-  error?: Error;
   token: string;
   turnStartedAt: number | null;
 };
@@ -50,7 +50,6 @@ export function ChatMessages({
   entries,
   status,
   isLoading,
-  error,
   token,
   turnStartedAt,
 }: ChatMessagesProps) {
@@ -134,6 +133,10 @@ export function ChatMessages({
 
             if (entry.kind === 'stopped') {
               return <StoppedEvent key={entry.id} message={entry.message} />;
+            }
+
+            if (entry.kind === 'error') {
+              return <ErrorEvent key={entry.id} message={entry.message} />;
             }
 
             if (entry.kind === 'tool') {
@@ -227,15 +230,6 @@ export function ChatMessages({
           </motion.div>
         )}
 
-        {error && (
-          <div className="flex items-end justify-start gap-2.5">
-            <AssistantAvatar />
-            <div className="flex max-w-[85%] items-start gap-2.5 rounded-3xl rounded-bl-lg border border-status-red/40 bg-red-bg px-5 py-4 text-sm text-status-red">
-              <CircleAlert size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
-              <span className="whitespace-pre-wrap">{error.message}</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Only ever appears once reading has scrolled the view away from the

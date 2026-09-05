@@ -57,7 +57,8 @@ export type ChatEntry =
   }
   | { id: string; kind: 'reasoning'; text: string }
   | { id: string; kind: 'file'; filename: string; url: string }
-  | { id: string; kind: 'stopped'; message: string };
+  | { id: string; kind: 'stopped'; message: string }
+  | { id: string; kind: 'error'; message: string };
 
 export type ChatStatus = 'ready' | 'submitted' | 'streaming';
 
@@ -65,6 +66,11 @@ let counter = 0;
 function nextId(): string {
   counter += 1;
   return `e${counter}`;
+}
+
+/** The monotonic counter behind an id (`"e42"` -> `42`) — lets two ids be compared for issue order. */
+function idSequence(id: string): number {
+  return Number(id.slice(1));
 }
 
 // How often a running job is polled for new events. The real agent has no
@@ -96,7 +102,6 @@ function wait(ms: number, signal: AbortSignal): Promise<void> {
 export function useAgentChat(token: string) {
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [status, setStatus] = useState<ChatStatus>('ready');
-  const [error, setError] = useState<Error | undefined>();
   // True from the moment Stop is clicked until the turn actually ends —
   // the click itself is silent (a fire-and-forget POST), so without this the
   // button gives no sign the press registered until the `stopped` event
@@ -168,7 +173,6 @@ export function useAgentChat(token: string) {
       // both have to agree on the same instant the turn actually began.
       const turnStartedAt = Date.now();
 
-      setError(undefined);
       setStatus('submitted');
       setTurnStartedAt(turnStartedAt);
       setEntries((prev) => [
@@ -273,12 +277,42 @@ export function useAgentChat(token: string) {
             }
             break;
           }
-          case 'file':
+          case 'file': {
+            // Some tools (export_document, at least) never send a matching
+            // tool_result — the file itself is the result, so nothing else
+            // would ever flip that chip out of "running" otherwise, and it
+            // would spin forever. The oldest still-pending call (ids are
+            // issued in order, so the lowest sequence number is the oldest)
+            // resolves here instead.
+            let oldestTool: string | null = null;
+            let oldestId: string | null = null;
+            for (const [tool, queue] of pendingToolCalls) {
+              const id = queue[0];
+              if (id !== undefined && (oldestId === null || idSequence(id) < idSequence(oldestId))) {
+                oldestTool = tool;
+                oldestId = id;
+              }
+            }
+
+            if (oldestTool !== null && oldestId !== null) {
+              pendingToolCalls.get(oldestTool)?.shift();
+              const endedAt = Date.now();
+              const resolvedId = oldestId;
+              setEntries((prev) =>
+                prev.map((entry) =>
+                  entry.id === resolvedId && entry.kind === 'tool'
+                    ? { ...entry, status: 'done', endedAt }
+                    : entry,
+                ),
+              );
+            }
+
             setEntries((prev) => [
               ...prev,
               { id: nextId(), kind: 'file', filename: event.filename, url: event.url },
             ]);
             break;
+          }
           case 'stopped':
             setEntries((prev) => [
               ...prev,
@@ -286,7 +320,10 @@ export function useAgentChat(token: string) {
             ]);
             break;
           case 'error':
-            setError(new Error(event.message));
+            setEntries((prev) => [
+              ...prev,
+              { id: nextId(), kind: 'error', message: event.message },
+            ]);
             break;
         }
       };
@@ -350,7 +387,8 @@ export function useAgentChat(token: string) {
       } catch (err) {
         // Aborting is our own doing (unmount), not something to report.
         if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err : new Error(String(err)));
+          const message = err instanceof Error ? err.message : String(err);
+          setEntries((prev) => [...prev, { id: nextId(), kind: 'error', message }]);
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
@@ -379,5 +417,5 @@ export function useAgentChat(token: string) {
     [status, token, threadId],
   );
 
-  return { entries, status, error, sendMessage, stop, isStopping, turnStartedAt, threadId };
+  return { entries, status, sendMessage, stop, isStopping, turnStartedAt, threadId };
 }
