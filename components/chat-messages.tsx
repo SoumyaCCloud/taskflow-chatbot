@@ -162,12 +162,19 @@ export function ChatMessages({
               >
                 {!isUser && <AssistantAvatar />}
 
+                {/* min-w-0 on both this and the bubble below is load-bearing:
+                    a flex item's default min-width is its content's intrinsic
+                    size, not 0, so a wide table (Streamdown already gives its
+                    own table its own overflow-x-auto scrollbar) would still
+                    force this whole chain wider instead of letting that
+                    scrollbar do its job — the bubble would grow to fit the
+                    table rather than the table scrolling inside the bubble. */}
                 <div
-                  className={`flex flex-col gap-1 ${isUser ? 'max-w-[60%] items-end' : 'max-w-full items-start'
+                  className={`flex min-w-0 flex-col gap-1 ${isUser ? 'max-w-[60%] items-end' : 'max-w-full items-start'
                     }`}
                 >
                   <div
-                    className={`${BUBBLE_BASE} ${isUser
+                    className={`min-w-0 ${BUBBLE_BASE} ${isUser
                       ? 'rounded-br-lg bg-accent py-3 text-primary-foreground'
                       : 'rounded-bl-lg border border-border-subtle bg-bg-700 py-4 text-text-100'
                       }`}
