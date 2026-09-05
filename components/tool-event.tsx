@@ -2,9 +2,10 @@
 
 import { ArrowRightLeft, ChevronRight, CircleCheck, LoaderCircle } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Tooltip } from '@/components/tooltip';
+import { useElapsed } from '@/lib/format-elapsed';
 
 const HANDOFF_PREFIX = 'handoff_to_';
 
@@ -12,28 +13,6 @@ const HANDOFF_PREFIX = 'handoff_to_';
 function formatHandoffDomain(tool: string): string {
   const domain = tool.slice(HANDOFF_PREFIX.length).replace(/_/g, ' ');
   return domain.charAt(0).toUpperCase() + domain.slice(1);
-}
-
-/** "1s" while under a minute, "1m 04s" past it — Claude's own tool-call clock does the same. */
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
-
-/** Ticks once a second while `endedAt` is unset, then freezes on the final duration. */
-function useElapsed(startedAt: number, endedAt: number | undefined): string {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (endedAt !== undefined) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [endedAt]);
-
-  return formatElapsed((endedAt ?? now) - startedAt);
 }
 
 /*

@@ -30,7 +30,18 @@ export type SendMessageOptions = {
  * that does not exist yet.
  */
 export type ChatEntry =
-  | { id: string; kind: 'message'; role: 'user' | 'assistant'; text: string }
+  | {
+    id: string;
+    kind: 'message';
+    role: 'user' | 'assistant';
+    text: string;
+    // Wall-clock timestamps for the turn that produced this message — unset
+    // on the user's own messages, and on an assistant one until its first
+    // token lands. Lets ChatMessages show a live "Thinking for Xs" before
+    // that, and a frozen total turn time next to the copy button after.
+    startedAt?: number;
+    endedAt?: number;
+  }
   | {
     id: string;
     kind: 'tool';
@@ -91,6 +102,10 @@ export function useAgentChat(token: string) {
   // button gives no sign the press registered until the `stopped` event
   // eventually arrives on the next poll.
   const [isStopping, setIsStopping] = useState(false);
+  // Set the instant a turn is sent, cleared once it ends — lets the "typing"
+  // indicator show a live "Thinking for Xs" before there's an assistant
+  // message entry yet for it to live on.
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
 
   // One id for the life of the mounted chat: the server keys history off it, so
   // a new one mid-conversation would silently start the agent over. Lazy
@@ -148,8 +163,14 @@ export function useAgentChat(token: string) {
       const message = text.trim();
       if (!message || status !== 'ready') return;
 
+      // Captured once per turn rather than read fresh each time it's needed:
+      // the assistant entry created below and the "ended" stamp in `finally`
+      // both have to agree on the same instant the turn actually began.
+      const turnStartedAt = Date.now();
+
       setError(undefined);
       setStatus('submitted');
+      setTurnStartedAt(turnStartedAt);
       setEntries((prev) => [
         ...prev,
         { id: nextId(), kind: 'message', role: 'user', text: message },
@@ -178,7 +199,7 @@ export function useAgentChat(token: string) {
               answerId = id;
               setEntries((prev) => [
                 ...prev,
-                { id, kind: 'message', role: 'assistant', text: '' },
+                { id, kind: 'message', role: 'assistant', text: '', startedAt: turnStartedAt },
               ]);
             }
             const id = answerId;
@@ -334,6 +355,23 @@ export function useAgentChat(token: string) {
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
         jobIdRef.current = null;
+
+        // Only an entry that actually exists gets a final time — a turn that
+        // never produced any text (an error, or stopped before the first
+        // token) has nothing for a duration to attach to.
+        if (answerId !== null) {
+          const endedAt = Date.now();
+          const finishedAnswerId = answerId;
+          setEntries((prev) =>
+            prev.map((entry) =>
+              entry.id === finishedAnswerId && entry.kind === 'message'
+                ? { ...entry, endedAt }
+                : entry,
+            ),
+          );
+        }
+
+        setTurnStartedAt(null);
         setStatus('ready');
         setIsStopping(false);
       }
@@ -341,5 +379,5 @@ export function useAgentChat(token: string) {
     [status, token, threadId],
   );
 
-  return { entries, status, error, sendMessage, stop, isStopping, threadId };
+  return { entries, status, error, sendMessage, stop, isStopping, turnStartedAt, threadId };
 }

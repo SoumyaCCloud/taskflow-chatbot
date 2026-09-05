@@ -14,6 +14,7 @@ import { ToolEvent } from '@/components/tool-event';
 import { Tooltip } from '@/components/tooltip';
 import { TypingIndicator } from '@/components/typing-indicator';
 import { UserAvatar } from '@/components/user-avatar';
+import { formatElapsed } from '@/lib/format-elapsed';
 import type { ChatEntry, ChatStatus } from '@/lib/use-agent-chat';
 
 // How close to the bottom (in px) still counts as "there" — a few pixels of
@@ -27,6 +28,7 @@ type ChatMessagesProps = {
   isLoading: boolean;
   error?: Error;
   token: string;
+  turnStartedAt: number | null;
 };
 
 /*
@@ -44,7 +46,14 @@ type ChatMessagesProps = {
  */
 const BUBBLE_BASE = 'rounded-3xl px-5 shadow-card text-[15px] leading-relaxed';
 
-export function ChatMessages({ entries, status, isLoading, error, token }: ChatMessagesProps) {
+export function ChatMessages({
+  entries,
+  status,
+  isLoading,
+  error,
+  token,
+  turnStartedAt,
+}: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Whether the viewport is sitting at (or near) the bottom right now. A ref
@@ -174,8 +183,21 @@ export function ChatMessages({ entries, status, isLoading, error, token }: ChatM
                     )}
                   </div>
 
-                  {/* Copying only ever applies to what the model said. */}
-                  {!isUser && entry.text && <CopyButton text={entry.text} />}
+                  {/* Copying only ever applies to what the model said. The
+                      total duration only ever shows once the turn is fully
+                      over (both timestamps set) — while it's still streaming
+                      the live "Thinking for Xs" clock above already covers
+                      that ground. */}
+                  {!isUser && entry.text && (
+                    <div className="flex items-center gap-2">
+                      <CopyButton text={entry.text} />
+                      {entry.startedAt !== undefined && entry.endedAt !== undefined && (
+                        <span className="text-[11px] text-text-300">
+                          {formatElapsed(entry.endedAt - entry.startedAt)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Sits after the bubble so it lands on the outer edge of the
@@ -194,7 +216,7 @@ export function ChatMessages({ entries, status, isLoading, error, token }: ChatM
             className="flex items-end justify-start gap-2.5"
           >
             <AssistantAvatar />
-            <TypingIndicator />
+            <TypingIndicator startedAt={turnStartedAt} />
           </motion.div>
         )}
 
