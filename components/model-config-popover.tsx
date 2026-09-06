@@ -4,6 +4,7 @@ import { Bot, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { GraphToolboxButton } from '@/components/graph-toolbox-button';
 import { ModelSelect } from '@/components/model-select';
 import { Tooltip } from '@/components/tooltip';
 import { findModelOption, type ModelSelection } from '@/lib/agent-events';
@@ -124,6 +125,8 @@ export function ModelConfigPopover({
           <Bot size={18} strokeWidth={2} />
         </button>
       </Tooltip>
+
+      <GraphToolboxButton menuDirection={menuDirection} />
 
       <AnimatePresence>
         {isOpen && (
