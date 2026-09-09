@@ -1,10 +1,12 @@
 'use client';
 
-import { CircleAlert, Download, FileText, LoaderCircle } from 'lucide-react';
+import { CircleAlert, Download, Eye, FileText, LoaderCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState } from 'react';
 
-import { Tooltip } from '@/components/tooltip';
+import { buildDownloadProxyUrl, fetchFileOnce } from '@/lib/file-fetch-cache';
+import { getPreviewKind } from '@/lib/file-preview';
+import type { PreviewTarget } from '@/components/preview-panel';
 
 /*
  * A file the agent produced. `url` lives on the agent's own host, so this
@@ -19,25 +21,24 @@ export function FileEvent({
   filename,
   url,
   token,
+  onPreview,
 }: {
   filename: string;
   url: string;
   token: string;
+  onPreview?: (file: PreviewTarget) => void;
 }) {
   const [state, setState] = useState<'idle' | 'downloading' | 'error'>('idle');
+  const previewKind = getPreviewKind(filename);
 
   const handleDownload = async () => {
     if (state === 'downloading') return;
     setState('downloading');
 
     try {
-      const proxyUrl = `/api/agent/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
-      const response = await fetch(proxyUrl, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
+      const proxyUrl = buildDownloadProxyUrl(url, filename);
+      const blob = await fetchFileOnce(proxyUrl, token);
 
-      const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;
@@ -60,41 +61,56 @@ export function FileEvent({
       transition={{ duration: 0.2 }}
       className="flex justify-start pl-10"
     >
-      {/* max-w-85% lives on the tooltip wrapper, not the button: the wrapper
-          is what the outer flex row actually sees as its sized child, so the
-          button's own `w-full` can safely mean "fill that already-capped
-          box" instead of re-resolving 85% against an unsized ancestor. */}
-      <Tooltip content={`Download ${filename}`} className="w-full max-w-[85%]">
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={state === 'downloading'}
-          className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-border-subtle bg-bg-700 px-4 py-3 text-left shadow-card transition-colors hover:border-accent/50 hover:bg-bg-600 disabled:cursor-wait"
-        >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-bg text-accent">
-            <FileText size={18} strokeWidth={2} />
-          </span>
+      {/* The card itself is inert — no click target of its own — so Preview
+          and Download can each be their own explicit action instead of one
+          overloading the whole row. */}
+      <div className="flex w-full max-w-[85%] items-center gap-3 rounded-2xl border border-border-subtle bg-bg-700 px-4 py-3 shadow-card">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-bg text-accent">
+          <FileText size={18} strokeWidth={2} />
+        </span>
 
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-text-100">{filename}</span>
-            <span className="block text-xs text-text-300">
-              {state === 'error'
-                ? 'Download failed — click to retry'
-                : state === 'downloading'
-                  ? 'Downloading…'
-                  : 'Click to download'}
-            </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-text-100">{filename}</span>
+          <span className="block text-xs text-text-300">
+            {state === 'error'
+              ? 'Download failed — try again'
+              : state === 'downloading'
+                ? 'Downloading…'
+                : previewKind
+                  ? 'Ready to preview or download'
+                  : 'Ready to download'}
           </span>
+        </span>
 
-          {state === 'downloading' ? (
-            <LoaderCircle size={16} strokeWidth={2} className="shrink-0 animate-spin text-text-300" />
-          ) : state === 'error' ? (
-            <CircleAlert size={16} strokeWidth={2} className="shrink-0 text-status-red" />
-          ) : (
-            <Download size={16} strokeWidth={2} className="shrink-0 text-text-300" />
+        <div className="flex shrink-0 items-center gap-2">
+          {previewKind && (
+            <button
+              type="button"
+              onClick={() => onPreview?.({ filename, url })}
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-800 px-2.5 py-1.5 text-xs font-medium text-text-200 transition-colors hover:border-accent/50 hover:bg-bg-600 hover:text-text-100"
+            >
+              <Eye size={14} strokeWidth={2} />
+              Preview
+            </button>
           )}
-        </button>
-      </Tooltip>
+
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={state === 'downloading'}
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-800 px-2.5 py-1.5 text-xs font-medium text-text-200 transition-colors hover:border-accent/50 hover:bg-bg-600 hover:text-text-100 disabled:cursor-wait disabled:opacity-70"
+          >
+            {state === 'downloading' ? (
+              <LoaderCircle size={14} strokeWidth={2} className="animate-spin" />
+            ) : state === 'error' ? (
+              <CircleAlert size={14} strokeWidth={2} className="text-status-red" />
+            ) : (
+              <Download size={14} strokeWidth={2} />
+            )}
+            {state === 'error' ? 'Retry' : 'Download'}
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 }

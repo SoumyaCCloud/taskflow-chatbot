@@ -9,6 +9,7 @@ import { AssistantAvatar } from '@/components/assistant-avatar';
 import { CopyButton } from '@/components/copy-button';
 import { ErrorEvent } from '@/components/error-event';
 import { FileEvent } from '@/components/file-event';
+import type { PreviewTarget } from '@/components/preview-panel';
 import { ReasoningEvent } from '@/components/reasoning-event';
 import { StoppedEvent } from '@/components/stopped-event';
 import { ToolEvent } from '@/components/tool-event';
@@ -29,6 +30,7 @@ type ChatMessagesProps = {
   isLoading: boolean;
   token: string;
   turnStartedAt: number | null;
+  onPreview: (file: PreviewTarget) => void;
 };
 
 /*
@@ -52,6 +54,7 @@ export function ChatMessages({
   isLoading,
   token,
   turnStartedAt,
+  onPreview,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -127,7 +130,13 @@ export function ChatMessages({
 
             if (entry.kind === 'file') {
               return (
-                <FileEvent key={entry.id} filename={entry.filename} url={entry.url} token={token} />
+                <FileEvent
+                  key={entry.id}
+                  filename={entry.filename}
+                  url={entry.url}
+                  token={token}
+                  onPreview={onPreview}
+                />
               );
             }
 

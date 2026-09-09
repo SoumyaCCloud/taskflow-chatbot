@@ -7,6 +7,7 @@ import 'streamdown/styles.css';
 import { ChatInput } from '@/components/chat-input';
 import { ChatMessages } from '@/components/chat-messages';
 import { EmptyState } from '@/components/empty-state';
+import { PreviewPanel, type PreviewTarget } from '@/components/preview-panel';
 import { useSessionToken } from '@/components/shell-session-provider';
 import { SuggestedPrompts } from '@/components/suggested-prompts';
 import { DEFAULT_THINKING_LEVEL, type ModelSelection, type ThinkingLevel } from '@/lib/agent-events';
@@ -24,6 +25,7 @@ export default function Page() {
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(DEFAULT_THINKING_LEVEL);
   const [modelSelection, setModelSelection] = useState<ModelSelection | null>(null);
   const [summarizerModelSelection, setSummarizerModelSelection] = useState<ModelSelection | null>(null);
+  const [previewFile, setPreviewFile] = useState<PreviewTarget | null>(null);
 
   const isLoading = status === 'submitted' || status === 'streaming';
   // Empty chat centers the composer; the first message drops it to the bottom.
@@ -49,57 +51,66 @@ export default function Page() {
   };
 
   return (
-    <main className={`mx-auto flex h-full w-full max-w-3xl flex-col p-4 ${hasConversation ? '' : 'justify-center'}`}
-    >
-      {hasConversation && (
-        <ChatMessages
-          entries={entries}
-          status={status}
-          isLoading={isLoading}
-          token={token}
-          turnStartedAt={turnStartedAt}
-        />
-      )}
-
-      {/* The greeting only exists in the empty state — once the conversation
-          starts the transcript deserves the vertical space. */}
-      {isEmptyState && <EmptyState />}
-
-      {/* Kept in the same tree position in both states so `layout` tweens the
-          composer from center to bottom instead of remounting it. */}
-      <motion.div
-        layout
-        transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-        className={hasConversation ? 'mt-4' : ''}
+    <div className="flex h-full w-full">
+      {/* flex-1 + min-w-0 let this column shrink to make room for the preview
+          panel; mx-auto max-w-3xl inside it still centers the transcript and
+          composer at their usual width within whatever space is left, so the
+          page fills the viewport without widening the messages themselves. */}
+      <main className={`mx-auto flex h-full w-full min-w-0 max-w-3xl flex-1 flex-col p-4 ${hasConversation ? '' : 'justify-center'}`}
       >
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSubmit={handleSubmit}
-          onStop={stop}
-          isLoading={isLoading}
-          isStopping={isStopping}
-          thinkingLevel={thinkingLevel}
-          onThinkingLevelChange={setThinkingLevel}
-          modelSelection={modelSelection}
-          onModelSelectionChange={setModelSelection}
-          summarizerModelSelection={summarizerModelSelection}
-          onSummarizerModelSelectionChange={setSummarizerModelSelection}
-          // Empty chat centers the composer mid-viewport, so its menus open
-          // downward into the open space below; once there's a conversation
-          // the composer sits pinned to the bottom, so they flip upward into
-          // the transcript instead — there's little to no room below it there.
-          menuDirection={hasConversation ? 'up' : 'down'}
-        />
+        {hasConversation && (
+          <ChatMessages
+            entries={entries}
+            status={status}
+            isLoading={isLoading}
+            token={token}
+            turnStartedAt={turnStartedAt}
+            onPreview={setPreviewFile}
+          />
+        )}
 
-        {/* Under the composer, inside the same layout-animated block so the
-            chips travel with it rather than jumping when it recentres. */}
-        <AnimatePresence initial={false}>
-          {showSuggestions && (
-            <SuggestedPrompts onPick={handlePick} disabled={isLoading} />
-          )}
-        </AnimatePresence>
-      </motion.div>
-    </main>
+        {/* The greeting only exists in the empty state — once the conversation
+            starts the transcript deserves the vertical space. */}
+        {isEmptyState && <EmptyState />}
+
+        {/* Kept in the same tree position in both states so `layout` tweens the
+            composer from center to bottom instead of remounting it. */}
+        <motion.div
+          layout
+          transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+          className={hasConversation ? 'mt-4' : ''}
+        >
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSubmit={handleSubmit}
+            onStop={stop}
+            isLoading={isLoading}
+            isStopping={isStopping}
+            thinkingLevel={thinkingLevel}
+            onThinkingLevelChange={setThinkingLevel}
+            modelSelection={modelSelection}
+            onModelSelectionChange={setModelSelection}
+            summarizerModelSelection={summarizerModelSelection}
+            onSummarizerModelSelectionChange={setSummarizerModelSelection}
+            // Empty chat centers the composer mid-viewport, so its menus open
+            // downward into the open space below; once there's a conversation
+            // the composer sits pinned to the bottom, so they flip upward into
+            // the transcript instead — there's little to no room below it there.
+            menuDirection={hasConversation ? 'up' : 'down'}
+          />
+
+          {/* Under the composer, inside the same layout-animated block so the
+              chips travel with it rather than jumping when it recentres. */}
+          <AnimatePresence initial={false}>
+            {showSuggestions && (
+              <SuggestedPrompts onPick={handlePick} disabled={isLoading} />
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </main>
+
+      <PreviewPanel file={previewFile} token={token} onClose={() => setPreviewFile(null)} />
+    </div>
   );
 }
