@@ -12,11 +12,27 @@ import { getPreviewKind } from '@/lib/file-preview';
 export type PreviewTarget = { filename: string; url: string };
 
 const MIN_WIDTH = 360;
-const MAX_WIDTH = 840;
-const DEFAULT_WIDTH = 480;
+// The chat column keeps at least this much room even at the panel's widest,
+// so widening the panel never fully swallows the transcript.
+const MIN_MAIN_WIDTH = 320;
+const DEFAULT_WIDTH_RATIO = 0.5;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getViewportWidth() {
+  // SSR has no window; nothing sized from this renders until a file is
+  // opened client-side, so the fallback never actually reaches the screen.
+  return typeof window === 'undefined' ? 1024 : window.innerWidth;
+}
+
+function getMaxWidth() {
+  return Math.max(MIN_WIDTH, getViewportWidth() - MIN_MAIN_WIDTH);
+}
+
+function getDefaultWidth() {
+  return clamp(Math.round(getViewportWidth() * DEFAULT_WIDTH_RATIO), MIN_WIDTH, getMaxWidth());
 }
 
 type SpreadsheetSheets = Record<string, string[][]>;
@@ -43,10 +59,10 @@ export function PreviewPanel({
   token: string;
   onClose: () => void;
 }) {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [width, setWidth] = useState(getDefaultWidth);
   const [isDragging, setIsDragging] = useState(false);
   const [isHandleHovered, setIsHandleHovered] = useState(false);
-  const dragStartRef = useRef({ x: 0, width: DEFAULT_WIDTH });
+  const dragStartRef = useRef({ x: 0, width: 0 });
   // Driven by explicit enter/leave + the drag flag rather than CSS `:hover` —
   // native hover can read as "stuck" once a drag has moved the pointer
   // through other elements, since nothing then fires the handle's own
@@ -73,19 +89,7 @@ export function PreviewPanel({
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
-    const onMove = (e: PointerEvent) => {
-      // Dragging left grows the panel (it's anchored to the right edge), so
-      // the delta is start-minus-current, not the other way round.
-      const delta = dragStartRef.current.x - e.clientX;
-      setWidth(clamp(dragStartRef.current.width + delta, MIN_WIDTH, MAX_WIDTH));
-    };
-    const onUp = () => setIsDragging(false);
-
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
     return () => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
     };
@@ -180,7 +184,27 @@ export function PreviewPanel({
             onPointerDown={(e) => {
               dragStartRef.current = { x: e.clientX, width };
               setIsDragging(true);
+              // Pointer capture keeps every subsequent move/up event targeted
+              // at this handle for the rest of the gesture, even once the
+              // cursor crosses over the PDF iframe below — an iframe is a
+              // separate browsing context and would otherwise swallow those
+              // events once the pointer entered it, freezing the drag
+              // mid-shrink (shrinking moves the handle *toward* the iframe;
+              // growing moves it away, which is why only shrinking stuck).
+              e.currentTarget.setPointerCapture(e.pointerId);
             }}
+            onPointerMove={(e) => {
+              if (!isDragging) return;
+              // Dragging left grows the panel (it's anchored to the right
+              // edge), so the delta is start-minus-current, not the reverse.
+              const delta = dragStartRef.current.x - e.clientX;
+              setWidth(clamp(dragStartRef.current.width + delta, MIN_WIDTH, getMaxWidth()));
+            }}
+            onPointerUp={(e) => {
+              setIsDragging(false);
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }}
+            onPointerCancel={() => setIsDragging(false)}
             onMouseEnter={() => setIsHandleHovered(true)}
             onMouseLeave={() => setIsHandleHovered(false)}
             className="absolute -left-2 top-0 z-10 flex h-full w-4 cursor-col-resize touch-none items-stretch justify-center"
